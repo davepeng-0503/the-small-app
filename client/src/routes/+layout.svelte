@@ -1,18 +1,15 @@
 <script lang="ts">
 	import { page } from "$app/stores";
+	import "../app.css";
 
 	let { children } = $props();
 </script>
 
-<div class="flex h-screen bg-gray-50">
-	<aside class="w-64 bg-white shadow-lg flex flex-col flex-shrink-0">
-		<div class="p-5 border-b text-center">
-			<a
-				href="/"
-				class="text-3xl text-green-700 hover:text-green-800"
-				style="font-family: 'Comic Sans MS', cursive, sans-serif;"
-			>
-				My Scrapbook
+<div class="flex h-screen bg-rose-50 font-sans">
+	<aside class="w-64 bg-white border-r border-rose-200 flex flex-col flex-shrink-0">
+		<div class="p-5 border-b border-rose-200 text-center">
+			<a href="/" class="text-3xl text-rose-500 hover:text-rose-600 font-bold">
+				Our Watermelons
 			</a>
 		</div>
 		<nav class="p-4">
@@ -20,10 +17,10 @@
 				<li>
 					<a
 						href="/watermelons"
-						class="block py-2 px-4 rounded-md text-lg text-gray-700 hover:bg-red-100 hover:text-red-700 transition-colors"
+						class="block py-2 px-4 rounded-md text-lg text-gray-700 hover:bg-rose-100 hover:text-rose-500 transition-colors"
 						class:font-bold={$page.url.pathname.startsWith("/watermelons")}
-						class:text-red-600={$page.url.pathname.startsWith("/watermelons")}
-						class:bg-red-100={$page.url.pathname.startsWith("/watermelons")}
+						class:text-rose-500={$page.url.pathname.startsWith("/watermelons")}
+						class:bg-rose-100={$page.url.pathname.startsWith("/watermelons")}
 					>
 						🍉 Watermelons
 					</a>
