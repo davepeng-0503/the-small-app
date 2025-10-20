@@ -8,6 +8,7 @@
 	type Watermelon = {
 		id: number;
 		src: string;
+		createdAt: Date;
 		rachy: Ratings;
 		davey: Ratings;
 	};
@@ -25,6 +26,7 @@
 					const newWatermelon: Watermelon = {
 						id: nextId++,
 						src: e.target.result,
+						createdAt: new Date(),
 						rachy: {
 							texture: 50,
 							juiciness: 50,
@@ -44,18 +46,13 @@
 	}
 </script>
 
-<div class="p-8 bg-yellow-50 min-h-full font-serif">
-	<h1
-		class="text-5xl text-green-700 font-bold mb-10 text-center"
-		style="font-family: 'Comic Sans MS', cursive, sans-serif;"
-	>
-		Watermelon Scrapbook
-	</h1>
+<div class="p-8 min-h-full">
+	<h1 class="text-5xl text-rose-500 font-bold mb-10 text-center">Our Watermelon Memories</h1>
 
 	<div class="mb-12 text-center">
 		<label
 			for="file-upload"
-			class="cursor-pointer bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-transform transform hover:scale-105"
+			class="cursor-pointer bg-rose-400 hover:bg-rose-500 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-transform transform hover:scale-105"
 		>
 			+ Add a Watermelon Memory
 		</label>
@@ -69,26 +66,33 @@
 	</div>
 
 	{#if watermelons.length === 0}
-		<p class="text-center text-gray-500">Upload a photo to start your scrapbook!</p>
+		<div class="text-center py-20">
+			<p class="text-gray-500 text-lg">Upload a photo to start tracking your watermelon memories!</p>
+			<div class="text-6xl mt-4">🍉</div>
+		</div>
 	{/if}
 
 	<div class="space-y-12 p-4">
 		{#each watermelons as watermelon (watermelon.id)}
-			<div class="bg-white p-6 shadow-xl rounded-lg w-full">
+			<div class="bg-white p-6 shadow-md rounded-lg w-full border border-rose-100">
 				<div class="flex flex-col lg:flex-row gap-8 items-start">
-					<img
-						src={watermelon.src}
-						alt="A watermelon"
-						class="w-full lg:w-1/3 h-80 object-cover rounded-md border-2 border-gray-100"
-					/>
+					<div class="w-full lg:w-1/3">
+						<img
+							src={watermelon.src}
+							alt="A watermelon"
+							class="w-full h-80 object-cover rounded-md border-2 border-rose-100"
+						/>
+						<p class="text-center text-gray-500 mt-2">
+							{watermelon.createdAt.toLocaleDateString('en-US', {
+								year: 'numeric',
+								month: 'long',
+								day: 'numeric'
+							})}
+						</p>
+					</div>
 					<div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-8 w-full">
 						<div>
-							<h3
-								class="text-2xl font-bold text-pink-400 mb-4"
-								style="font-family: 'Comic Sans MS', cursive, sans-serif;"
-							>
-								Rachy's Rating
-							</h3>
+							<h3 class="text-2xl font-bold text-pink-400 mb-4 text-center">Rachy's Rating</h3>
 							<div class="mb-4">
 								<label
 									for="rachy-texture-{watermelon.id}"
@@ -100,7 +104,7 @@
 									bind:value={watermelon.rachy.texture}
 									min="1"
 									max="100"
-									class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
 								/>
 							</div>
 							<div class="mb-4">
@@ -114,7 +118,7 @@
 									bind:value={watermelon.rachy.juiciness}
 									min="1"
 									max="100"
-									class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
 								/>
 							</div>
 							<div>
@@ -128,31 +132,22 @@
 									bind:value={watermelon.rachy.sweetness}
 									min="1"
 									max="100"
-									class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
 								/>
 							</div>
 							<div class="mt-6 text-center">
-								<div
-									class="text-7xl font-bold text-pink-400 transform -rotate-6"
-									style="font-family: 'Comic Sans MS', cursive, sans-serif;"
-								>
+								<div class="text-7xl font-bold text-pink-400">
 									{Math.round(
 										(watermelon.rachy.texture +
 											watermelon.rachy.juiciness +
 											watermelon.rachy.sweetness) /
 											3
 									)}
-									<span class="text-3xl text-gray-500">/ 100</span>
 								</div>
 							</div>
 						</div>
 						<div>
-							<h3
-								class="text-2xl font-bold text-blue-500 mb-4"
-								style="font-family: 'Comic Sans MS', cursive, sans-serif;"
-							>
-								Davey's Rating
-							</h3>
+							<h3 class="text-2xl font-bold text-sky-400 mb-4 text-center">Davey's Rating</h3>
 							<div class="mb-4">
 								<label
 									for="davey-texture-{watermelon.id}"
@@ -164,7 +159,7 @@
 									bind:value={watermelon.davey.texture}
 									min="1"
 									max="100"
-									class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
 								/>
 							</div>
 							<div class="mb-4">
@@ -178,7 +173,7 @@
 									bind:value={watermelon.davey.juiciness}
 									min="1"
 									max="100"
-									class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
 								/>
 							</div>
 							<div>
@@ -192,21 +187,17 @@
 									bind:value={watermelon.davey.sweetness}
 									min="1"
 									max="100"
-									class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
 								/>
 							</div>
 							<div class="mt-6 text-center">
-								<div
-									class="text-7xl font-bold text-blue-500 transform rotate-6"
-									style="font-family: 'Comic Sans MS', cursive, sans-serif;"
-								>
+								<div class="text-7xl font-bold text-sky-400">
 									{Math.round(
 										(watermelon.davey.texture +
 											watermelon.davey.juiciness +
 											watermelon.davey.sweetness) /
 											3
 									)}
-									<span class="text-3xl text-gray-500">/ 100</span>
 								</div>
 							</div>
 						</div>
