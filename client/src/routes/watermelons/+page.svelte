@@ -159,7 +159,7 @@
 	{/if}
 
 	<div class="space-y-6 p-2">
-		{#each watermelons as watermelon (watermelon.id)}
+		{#each watermelons.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) as watermelon (watermelon.id)}
 			<div class="bg-white p-4 pt-12 shadow-md rounded-lg w-full border border-rose-100 relative">
 				<div class="absolute top-2 left-2 z-10">
 					{#if watermelon.editing}
