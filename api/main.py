@@ -38,6 +38,7 @@ class Watermelon(BaseModel):
 class WatermelonUpdate(BaseModel):
     rachy: Ratings
     davey: Ratings
+    createdAt: datetime
 
 class WatermelonCreate(BaseModel):
     image_base64: str
@@ -119,7 +120,7 @@ async def create_watermelon(payload: WatermelonCreate):
 
 @app.put("/watermelons/{watermelon_id}", response_model=Watermelon)
 async def update_watermelon(watermelon_id: str, payload: WatermelonUpdate):
-    """Update a watermelon's ratings."""
+    """Update a watermelon's ratings and creation date."""
     watermelons_data = read_watermelons_data()
     
     watermelon_to_update = None
@@ -134,6 +135,7 @@ async def update_watermelon(watermelon_id: str, payload: WatermelonUpdate):
     # Update ratings in the dictionary
     watermelon_to_update["rachy"] = payload.rachy.model_dump()
     watermelon_to_update["davey"] = payload.davey.model_dump()
+    watermelon_to_update["createdAt"] = payload.createdAt
 
     write_watermelons_data(watermelons_data)
     

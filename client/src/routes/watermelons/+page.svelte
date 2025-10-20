@@ -13,6 +13,7 @@
 		createdAt: Date;
 		rachy: Ratings;
 		davey: Ratings;
+		editing: boolean;
 	};
 
 	const API_URL = 'http://localhost:8001';
@@ -28,7 +29,8 @@
 			watermelons = data.map((wm: any) => ({
 				...wm,
 				src: `${API_URL}${wm.src}`,
-				createdAt: new Date(wm.createdAt)
+				createdAt: new Date(wm.createdAt),
+				editing: false
 			}));
 		} catch (error) {
 			console.error('Error fetching watermelons:', error);
@@ -59,7 +61,8 @@
 						const newWatermelon: Watermelon = {
 							...newWatermelonData,
 							src: `${API_URL}${newWatermelonData.src}`,
-							createdAt: new Date(newWatermelonData.createdAt)
+							createdAt: new Date(newWatermelonData.createdAt),
+							editing: true
 						};
 						watermelons = [...watermelons, newWatermelon];
 					} catch (error) {
@@ -72,7 +75,13 @@
 		}
 	}
 
-	async function saveRatings(watermelon: Watermelon) {
+	function toggleEdit(id: string) {
+		watermelons = watermelons.map((wm) =>
+			wm.id === id ? { ...wm, editing: !wm.editing } : wm
+		);
+	}
+
+	async function saveChanges(watermelon: Watermelon) {
 		try {
 			const response = await fetch(`${API_URL}/watermelons/${watermelon.id}`, {
 				method: 'PUT',
@@ -81,7 +90,8 @@
 				},
 				body: JSON.stringify({
 					rachy: watermelon.rachy,
-					davey: watermelon.davey
+					davey: watermelon.davey,
+					createdAt: watermelon.createdAt.toISOString()
 				})
 			});
 
@@ -90,11 +100,35 @@
 				throw new Error(errorData.detail || 'Failed to save ratings');
 			}
 
-			alert('Ratings saved successfully!');
+			toggleEdit(watermelon.id);
 		} catch (error) {
 			console.error('Error saving ratings:', error);
 			alert(`Error: ${error}`);
 		}
+	}
+
+	function formatDateForInput(date: Date): string {
+		const d = new Date(date);
+		const year = d.getFullYear();
+		let month = '' + (d.getMonth() + 1);
+		let day = '' + d.getDate();
+
+		if (month.length < 2) month = '0' + month;
+		if (day.length < 2) day = '0' + day;
+
+		return [year, month, day].join('-');
+	}
+
+	function handleDateChange(event: Event, watermelonId: string) {
+		const target = event.target as HTMLInputElement;
+		const [year, month, day] = target.value.split('-').map(Number);
+
+		watermelons = watermelons.map((wm) => {
+			if (wm.id === watermelonId) {
+				return { ...wm, createdAt: new Date(year, month - 1, day) };
+			}
+			return wm;
+		});
 	}
 </script>
 
@@ -126,7 +160,35 @@
 
 	<div class="space-y-6 p-2">
 		{#each watermelons as watermelon (watermelon.id)}
-			<div class="bg-white p-4 shadow-md rounded-lg w-full border border-rose-100">
+			<div class="bg-white p-4 pt-12 shadow-md rounded-lg w-full border border-rose-100 relative">
+				<div class="absolute top-2 left-2 z-10">
+					{#if watermelon.editing}
+						<button
+							on:click={() => saveChanges(watermelon)}
+							class="bg-rose-400 hover:bg-rose-500 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105"
+						>
+							Save
+						</button>
+					{:else}
+						<button
+							on:click={() => toggleEdit(watermelon.id)}
+							class="text-gray-400 hover:text-gray-600 p-2 rounded-full"
+							aria-label="Edit watermelon"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-6 w-6"
+								viewBox="0 0 20 20"
+								fill="currentColor"
+							>
+								<path
+									d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"
+								/>
+							</svg>
+						</button>
+					{/if}
+				</div>
+
 				<div class="flex flex-col lg:flex-row gap-4 items-center">
 					<div class="w-full lg:w-1/4">
 						<img
@@ -134,13 +196,22 @@
 							alt="A watermelon"
 							class="w-full h-48 object-cover rounded-md border-2 border-rose-100"
 						/>
-						<p class="text-center text-gray-500 mt-1 text-sm">
-							{watermelon.createdAt.toLocaleDateString('en-US', {
-								year: 'numeric',
-								month: 'long',
-								day: 'numeric'
-							})}
-						</p>
+						{#if watermelon.editing}
+							<input
+								type="date"
+								class="mt-1 w-full text-center border-gray-300 rounded-md shadow-sm focus:border-rose-300 focus:ring focus:ring-rose-200 focus:ring-opacity-50 text-sm p-1"
+								value={formatDateForInput(watermelon.createdAt)}
+								on:change={(e) => handleDateChange(e, watermelon.id)}
+							/>
+						{:else}
+							<p class="text-center text-gray-500 mt-1 text-sm">
+								{watermelon.createdAt.toLocaleDateString('en-US', {
+									year: 'numeric',
+									month: 'long',
+									day: 'numeric'
+								})}
+							</p>
+						{/if}
 					</div>
 					<div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
 						<div>
@@ -157,6 +228,7 @@
 									min="1"
 									max="100"
 									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
+									disabled={!watermelon.editing}
 								/>
 							</div>
 							<div class="mb-2">
@@ -171,6 +243,7 @@
 									min="1"
 									max="100"
 									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
+									disabled={!watermelon.editing}
 								/>
 							</div>
 							<div>
@@ -185,6 +258,7 @@
 									min="1"
 									max="100"
 									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
+									disabled={!watermelon.editing}
 								/>
 							</div>
 							<div class="mt-4 text-center">
@@ -212,6 +286,7 @@
 									min="1"
 									max="100"
 									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
+									disabled={!watermelon.editing}
 								/>
 							</div>
 							<div class="mb-2">
@@ -226,6 +301,7 @@
 									min="1"
 									max="100"
 									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
+									disabled={!watermelon.editing}
 								/>
 							</div>
 							<div>
@@ -240,6 +316,7 @@
 									min="1"
 									max="100"
 									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
+									disabled={!watermelon.editing}
 								/>
 							</div>
 							<div class="mt-4 text-center">
@@ -254,14 +331,6 @@
 							</div>
 						</div>
 					</div>
-				</div>
-				<div class="mt-6 text-right">
-					<button
-						on:click={() => saveRatings(watermelon)}
-						class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105"
-					>
-						Save Ratings
-					</button>
 				</div>
 			</div>
 		{/each}
