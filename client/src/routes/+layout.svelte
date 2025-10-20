@@ -9,7 +9,7 @@
 	<aside class="w-64 bg-white border-r border-rose-200 flex flex-col flex-shrink-0">
 		<div class="p-5 border-b border-rose-200 text-center">
 			<a href="/" class="text-3xl text-rose-500 hover:text-rose-600 font-bold">
-				Our Watermelons
+				R&D
 			</a>
 		</div>
 		<nav class="p-4">

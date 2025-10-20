@@ -46,13 +46,13 @@
 	}
 </script>
 
-<div class="p-8 min-h-full">
-	<h1 class="text-5xl text-rose-500 font-bold mb-10 text-center">Our Watermelon Memories</h1>
+<div class="p-6 min-h-full">
+	<h1 class="text-4xl text-rose-500 font-bold mb-8 text-center">Our Watermelon Memories</h1>
 
-	<div class="mb-12 text-center">
+	<div class="mb-8 text-center">
 		<label
 			for="file-upload"
-			class="cursor-pointer bg-rose-400 hover:bg-rose-500 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-transform transform hover:scale-105"
+			class="cursor-pointer bg-rose-400 hover:bg-rose-500 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105"
 		>
 			+ Add a Watermelon Memory
 		</label>
@@ -72,17 +72,17 @@
 		</div>
 	{/if}
 
-	<div class="space-y-12 p-4">
+	<div class="space-y-6 p-2">
 		{#each watermelons as watermelon (watermelon.id)}
-			<div class="bg-white p-6 shadow-md rounded-lg w-full border border-rose-100">
-				<div class="flex flex-col lg:flex-row gap-8 items-start">
-					<div class="w-full lg:w-1/3">
+			<div class="bg-white p-4 shadow-md rounded-lg w-full border border-rose-100">
+				<div class="flex flex-col lg:flex-row gap-4 items-center">
+					<div class="w-full lg:w-1/4">
 						<img
 							src={watermelon.src}
 							alt="A watermelon"
-							class="w-full h-80 object-cover rounded-md border-2 border-rose-100"
+							class="w-full h-48 object-cover rounded-md border-2 border-rose-100"
 						/>
-						<p class="text-center text-gray-500 mt-2">
+						<p class="text-center text-gray-500 mt-1 text-sm">
 							{watermelon.createdAt.toLocaleDateString('en-US', {
 								year: 'numeric',
 								month: 'long',
@@ -90,13 +90,13 @@
 							})}
 						</p>
 					</div>
-					<div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-8 w-full">
+					<div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
 						<div>
-							<h3 class="text-2xl font-bold text-pink-400 mb-4 text-center">Rachy's Rating</h3>
-							<div class="mb-4">
+							<h3 class="text-xl font-bold text-pink-400 mb-2 text-center">Rachy's Rating</h3>
+							<div class="mb-2">
 								<label
 									for="rachy-texture-{watermelon.id}"
-									class="block text-lg font-medium text-gray-700">Texture</label
+									class="block text-sm font-medium text-gray-700">Texture</label
 								>
 								<input
 									type="range"
@@ -107,10 +107,10 @@
 									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
 								/>
 							</div>
-							<div class="mb-4">
+							<div class="mb-2">
 								<label
 									for="rachy-juiciness-{watermelon.id}"
-									class="block text-lg font-medium text-gray-700">Juiciness</label
+									class="block text-sm font-medium text-gray-700">Juiciness</label
 								>
 								<input
 									type="range"
@@ -124,7 +124,7 @@
 							<div>
 								<label
 									for="rachy-sweetness-{watermelon.id}"
-									class="block text-lg font-medium text-gray-700">Sweetness</label
+									class="block text-sm font-medium text-gray-700">Sweetness</label
 								>
 								<input
 									type="range"
@@ -135,8 +135,8 @@
 									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
 								/>
 							</div>
-							<div class="mt-6 text-center">
-								<div class="text-7xl font-bold text-pink-400">
+							<div class="mt-4 text-center">
+								<div class="text-5xl font-bold text-pink-400">
 									{Math.round(
 										(watermelon.rachy.texture +
 											watermelon.rachy.juiciness +
@@ -147,11 +147,11 @@
 							</div>
 						</div>
 						<div>
-							<h3 class="text-2xl font-bold text-sky-400 mb-4 text-center">Davey's Rating</h3>
-							<div class="mb-4">
+							<h3 class="text-xl font-bold text-sky-400 mb-2 text-center">Davey's Rating</h3>
+							<div class="mb-2">
 								<label
 									for="davey-texture-{watermelon.id}"
-									class="block text-lg font-medium text-gray-700">Texture</label
+									class="block text-sm font-medium text-gray-700">Texture</label
 								>
 								<input
 									type="range"
@@ -162,10 +162,10 @@
 									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
 								/>
 							</div>
-							<div class="mb-4">
+							<div class="mb-2">
 								<label
 									for="davey-juiciness-{watermelon.id}"
-									class="block text-lg font-medium text-gray-700">Juiciness</label
+									class="block text-sm font-medium text-gray-700">Juiciness</label
 								>
 								<input
 									type="range"
@@ -179,7 +179,7 @@
 							<div>
 								<label
 									for="davey-sweetness-{watermelon.id}"
-									class="block text-lg font-medium text-gray-700">Sweetness</label
+									class="block text-sm font-medium text-gray-700">Sweetness</label
 								>
 								<input
 									type="range"
@@ -190,8 +190,8 @@
 									class="w-full h-2 bg-rose-100 rounded-lg appearance-none cursor-pointer"
 								/>
 							</div>
-							<div class="mt-6 text-center">
-								<div class="text-7xl font-bold text-sky-400">
+							<div class="mt-4 text-center">
+								<div class="text-5xl font-bold text-sky-400">
 									{Math.round(
 										(watermelon.davey.texture +
 											watermelon.davey.juiciness +
