@@ -26,14 +26,14 @@
 						id: nextId++,
 						src: e.target.result,
 						rachy: {
-							texture: 5,
-							juiciness: 5,
-							sweetness: 5
+							texture: 50,
+							juiciness: 50,
+							sweetness: 50
 						},
 						davey: {
-							texture: 5,
-							juiciness: 5,
-							sweetness: 5
+							texture: 50,
+							juiciness: 50,
+							sweetness: 50
 						}
 					};
 					watermelons = [...watermelons, newWatermelon];
@@ -99,7 +99,7 @@
 									id="rachy-texture-{watermelon.id}"
 									bind:value={watermelon.rachy.texture}
 									min="1"
-									max="10"
+									max="100"
 									class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
 								/>
 							</div>
@@ -113,7 +113,7 @@
 									id="rachy-juiciness-{watermelon.id}"
 									bind:value={watermelon.rachy.juiciness}
 									min="1"
-									max="10"
+									max="100"
 									class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
 								/>
 							</div>
@@ -127,9 +127,23 @@
 									id="rachy-sweetness-{watermelon.id}"
 									bind:value={watermelon.rachy.sweetness}
 									min="1"
-									max="10"
+									max="100"
 									class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
 								/>
+							</div>
+							<div class="mt-6 text-center">
+								<div
+									class="text-7xl font-bold text-pink-400 transform -rotate-6"
+									style="font-family: 'Comic Sans MS', cursive, sans-serif;"
+								>
+									{Math.round(
+										(watermelon.rachy.texture +
+											watermelon.rachy.juiciness +
+											watermelon.rachy.sweetness) /
+											3
+									)}
+									<span class="text-3xl text-gray-500">/ 100</span>
+								</div>
 							</div>
 						</div>
 						<div>
@@ -149,7 +163,7 @@
 									id="davey-texture-{watermelon.id}"
 									bind:value={watermelon.davey.texture}
 									min="1"
-									max="10"
+									max="100"
 									class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
 								/>
 							</div>
@@ -163,7 +177,7 @@
 									id="davey-juiciness-{watermelon.id}"
 									bind:value={watermelon.davey.juiciness}
 									min="1"
-									max="10"
+									max="100"
 									class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
 								/>
 							</div>
@@ -177,9 +191,23 @@
 									id="davey-sweetness-{watermelon.id}"
 									bind:value={watermelon.davey.sweetness}
 									min="1"
-									max="10"
+									max="100"
 									class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
 								/>
+							</div>
+							<div class="mt-6 text-center">
+								<div
+									class="text-7xl font-bold text-blue-500 transform rotate-6"
+									style="font-family: 'Comic Sans MS', cursive, sans-serif;"
+								>
+									{Math.round(
+										(watermelon.davey.texture +
+											watermelon.davey.juiciness +
+											watermelon.davey.sweetness) /
+											3
+									)}
+									<span class="text-3xl text-gray-500">/ 100</span>
+								</div>
 							</div>
 						</div>
 					</div>
