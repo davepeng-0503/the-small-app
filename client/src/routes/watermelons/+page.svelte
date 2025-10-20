@@ -15,8 +15,20 @@
 		davey: Ratings;
 	};
 
-	const API_URL = 'http://localhost:8000';
+	const API_URL = 'http://localhost:8001';
 	let watermelons: Watermelon[] = [];
+
+	let showDatePickerModal = false;
+	let selectedDate = '';
+	let imageDataUrl: string | null = null;
+
+	// Helper to format date to YYYY-MM-DD for the date input
+	function toISODateString(date: Date) {
+		const year = date.getFullYear();
+		const month = (date.getMonth() + 1).toString().padStart(2, '0');
+		const day = date.getDate().toString().padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	}
 
 	onMount(async () => {
 		try {
@@ -35,40 +47,65 @@
 		}
 	});
 
-	async function handleFileUpload(event: Event) {
+	async function onFileSelected(event: Event) {
 		const target = event.target as HTMLInputElement;
 		if (target.files && target.files[0]) {
 			const file = target.files[0];
+
+			// Pre-select date with file's last modified date
+			selectedDate = toISODateString(new Date(file.lastModified));
+
 			const reader = new FileReader();
-			reader.onload = async (e) => {
+			reader.onload = (e) => {
 				if (typeof e.target?.result === 'string') {
-					try {
-						const response = await fetch(`${API_URL}/watermelons`, {
-							method: 'POST',
-							headers: {
-								'Content-Type': 'application/json'
-							},
-							body: JSON.stringify({ image_base64: e.target.result })
-						});
-
-						if (!response.ok) {
-							throw new Error('Failed to upload watermelon');
-						}
-
-						const newWatermelonData = await response.json();
-						const newWatermelon: Watermelon = {
-							...newWatermelonData,
-							src: `${API_URL}${newWatermelonData.src}`,
-							createdAt: new Date(newWatermelonData.createdAt)
-						};
-						watermelons = [...watermelons, newWatermelon];
-					} catch (error) {
-						console.error('Error uploading watermelon:', error);
-						alert('Failed to upload watermelon. See console for details.');
-					}
+					imageDataUrl = e.target.result;
+					showDatePickerModal = true;
 				}
 			};
 			reader.readAsDataURL(file);
+
+			// Reset file input value to allow selecting the same file again
+			target.value = '';
+		}
+	}
+
+	function cancelUpload() {
+		showDatePickerModal = false;
+		imageDataUrl = null;
+		selectedDate = '';
+	}
+
+	async function confirmUpload() {
+		if (!imageDataUrl || !selectedDate) return;
+
+		try {
+			const response = await fetch(`${API_URL}/watermelons`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					image_base64: imageDataUrl,
+					createdAt: new Date(selectedDate).toISOString()
+				})
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to upload watermelon');
+			}
+
+			const newWatermelonData = await response.json();
+			const newWatermelon: Watermelon = {
+				...newWatermelonData,
+				src: `${API_URL}${newWatermelonData.src}`,
+				createdAt: new Date(newWatermelonData.createdAt)
+			};
+			watermelons = [...watermelons, newWatermelon];
+		} catch (error) {
+			console.error('Error uploading watermelon:', error);
+			alert('Failed to upload watermelon. See console for details.');
+		} finally {
+			cancelUpload();
 		}
 	}
 
@@ -112,10 +149,50 @@
 			id="file-upload"
 			type="file"
 			class="hidden"
-			on:change={handleFileUpload}
+			on:change={onFileSelected}
 			accept="image/*"
 		/>
 	</div>
+
+	<!-- Date Picker Modal -->
+	{#if showDatePickerModal}
+		<div
+			class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4"
+			on:click|self={cancelUpload}
+		>
+			<div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+				<h2 class="text-2xl font-bold mb-4 text-center">Confirm Memory Date</h2>
+				{#if imageDataUrl}
+					<img src={imageDataUrl} alt="Preview" class="w-full h-48 object-cover rounded-md mb-4" />
+				{/if}
+
+				<label for="memory-date" class="block text-sm font-medium text-gray-700 mb-1"
+					>Date</label
+				>
+				<input
+					type="date"
+					id="memory-date"
+					bind:value={selectedDate}
+					class="w-full p-2 border border-gray-300 rounded-md mb-6"
+				/>
+
+				<div class="flex justify-end space-x-4">
+					<button
+						on:click={cancelUpload}
+						class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-full"
+					>
+						Cancel
+					</button>
+					<button
+						on:click={confirmUpload}
+						class="bg-rose-500 hover:bg-rose-600 text-white font-bold py-2 px-4 rounded-full"
+					>
+						Upload
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	{#if watermelons.length === 0}
 		<div class="text-center py-20">
@@ -125,7 +202,7 @@
 	{/if}
 
 	<div class="space-y-6 p-2">
-		{#each watermelons as watermelon (watermelon.id)}
+		{#each watermelons.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) as watermelon (watermelon.id)}
 			<div class="bg-white p-4 shadow-md rounded-lg w-full border border-rose-100">
 				<div class="flex flex-col lg:flex-row gap-4 items-center">
 					<div class="w-full lg:w-1/4">
