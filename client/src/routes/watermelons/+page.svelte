@@ -15,7 +15,7 @@
 		davey: Ratings;
 	};
 
-	const API_URL = 'http://localhost:8000';
+	const API_URL = 'http://localhost:8001';
 	let watermelons: Watermelon[] = [];
 
 	onMount(async () => {
