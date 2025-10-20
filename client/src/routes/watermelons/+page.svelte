@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+
 	type Ratings = {
 		texture: number;
 		juiciness: number;
@@ -6,42 +8,92 @@
 	};
 
 	type Watermelon = {
-		id: number;
+		id: string;
 		src: string;
 		createdAt: Date;
 		rachy: Ratings;
 		davey: Ratings;
 	};
 
+	const API_URL = 'http://localhost:8000';
 	let watermelons: Watermelon[] = [];
-	let nextId = 0;
 
-	function handleFileUpload(event: Event) {
+	onMount(async () => {
+		try {
+			const response = await fetch(`${API_URL}/watermelons`);
+			if (!response.ok) {
+				throw new Error('Failed to fetch watermelons');
+			}
+			const data = await response.json();
+			watermelons = data.map((wm: any) => ({
+				...wm,
+				src: `${API_URL}${wm.src}`,
+				createdAt: new Date(wm.createdAt)
+			}));
+		} catch (error) {
+			console.error('Error fetching watermelons:', error);
+		}
+	});
+
+	async function handleFileUpload(event: Event) {
 		const target = event.target as HTMLInputElement;
 		if (target.files && target.files[0]) {
 			const file = target.files[0];
 			const reader = new FileReader();
-			reader.onload = (e) => {
+			reader.onload = async (e) => {
 				if (typeof e.target?.result === 'string') {
-					const newWatermelon: Watermelon = {
-						id: nextId++,
-						src: e.target.result,
-						createdAt: new Date(),
-						rachy: {
-							texture: 50,
-							juiciness: 50,
-							sweetness: 50
-						},
-						davey: {
-							texture: 50,
-							juiciness: 50,
-							sweetness: 50
+					try {
+						const response = await fetch(`${API_URL}/watermelons`, {
+							method: 'POST',
+							headers: {
+								'Content-Type': 'application/json'
+							},
+							body: JSON.stringify({ image_base64: e.target.result })
+						});
+
+						if (!response.ok) {
+							throw new Error('Failed to upload watermelon');
 						}
-					};
-					watermelons = [...watermelons, newWatermelon];
+
+						const newWatermelonData = await response.json();
+						const newWatermelon: Watermelon = {
+							...newWatermelonData,
+							src: `${API_URL}${newWatermelonData.src}`,
+							createdAt: new Date(newWatermelonData.createdAt)
+						};
+						watermelons = [...watermelons, newWatermelon];
+					} catch (error) {
+						console.error('Error uploading watermelon:', error);
+						alert('Failed to upload watermelon. See console for details.');
+					}
 				}
 			};
 			reader.readAsDataURL(file);
+		}
+	}
+
+	async function saveRatings(watermelon: Watermelon) {
+		try {
+			const response = await fetch(`${API_URL}/watermelons/${watermelon.id}`, {
+				method: 'PUT',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					rachy: watermelon.rachy,
+					davey: watermelon.davey
+				})
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.detail || 'Failed to save ratings');
+			}
+
+			alert('Ratings saved successfully!');
+		} catch (error) {
+			console.error('Error saving ratings:', error);
+			alert(`Error: ${error}`);
 		}
 	}
 </script>
@@ -202,6 +254,14 @@
 							</div>
 						</div>
 					</div>
+				</div>
+				<div class="mt-6 text-right">
+					<button
+						on:click={() => saveRatings(watermelon)}
+						class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105"
+					>
+						Save Ratings
+					</button>
 				</div>
 			</div>
 		{/each}
