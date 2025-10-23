@@ -5,10 +5,11 @@ import uuid
 from datetime import datetime
 from typing import Dict, List
 
-from fastapi import FastAPI, HTTPException, Response, status
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from helpers.chibi_drawing import generate_chibis_from_image
+from helpers.chibi_drawing import (PolaroidAnalysisResult,
+                                     analyse_polaroid_image, generate)
 from pydantic import BaseModel, Field
 
 # --- General Setup ---
@@ -216,6 +217,49 @@ async def delete_watermelon(watermelon_id: str):
 
 # --- Polaroid API Endpoints ---
 
+def generate_and_update_stickers(polaroid_id: str, analysis_result: PolaroidAnalysisResult):
+    """
+    Background task to generate chibi stickers and update the polaroid data file.
+    """
+    print(f"Starting background sticker generation for polaroid_id: {polaroid_id}")
+    all_sticker_paths = []
+    
+    # Generate images for each task
+    for i, task in enumerate(analysis_result.chibi_tasks):
+        # generate() returns a list of paths, so we extend our main list
+        sticker_paths = generate(prompt=task.generation_prompt, task_num=i + 1)
+        if sticker_paths:
+            all_sticker_paths.extend(sticker_paths)
+            
+    if not all_sticker_paths:
+        print(f"Background task: No stickers were generated for polaroid {polaroid_id}.")
+        return
+
+    new_stickers = [Sticker(src=path) for path in all_sticker_paths]
+
+    # This part is a critical section. In a real app, use a lock or a proper DB.
+    polaroids_data = read_polaroids_data()
+    
+    polaroid_to_update = None
+    index_to_update = -1
+    for i, item in enumerate(polaroids_data):
+        if item.get("id") == polaroid_id:
+            polaroid_to_update = item
+            index_to_update = i
+            break
+
+    if not polaroid_to_update:
+        print(f"Background task ERROR: Could not find polaroid with id {polaroid_id} to update.")
+        return
+
+    # Update the stickers list for the found polaroid
+    polaroid_to_update["stickers"] = [s.model_dump(mode='json') for s in new_stickers]
+    polaroids_data[index_to_update] = polaroid_to_update
+
+    write_polaroids_data(polaroids_data)
+    print(f"Background task COMPLETE: Updated polaroid {polaroid_id} with {len(new_stickers)} stickers.")
+
+
 @app.get("/polaroids", response_model=List[Polaroid])
 async def get_polaroids():
     """Retrieve all saved polaroid records."""
@@ -224,14 +268,18 @@ async def get_polaroids():
     return [Polaroid(**item) for item in data]
 
 @app.post("/polaroids", response_model=Polaroid, status_code=201)
-async def create_polaroid(payload: ImageCreate):
-    """Create a new polaroid, save the image, and generate chibi stickers."""
+async def create_polaroid(payload: ImageCreate, background_tasks: BackgroundTasks):
+    """
+    Create a new polaroid from an image.
+    This analyzes the image to get a title, creates the polaroid record immediately,
+    and then queues a background task to generate the chibi stickers.
+    """
     try:
         header, encoded = payload.image_base64.split(",", 1)
         file_ext = header.split("/")[1].split(";")[0]
         
-        if file_ext not in ["jpeg", "jpg", "png", "gif"]:
-             raise HTTPException(status_code=400, detail="Invalid image format. Supported formats: jpeg, jpg, png, gif.")
+        if file_ext not in ["jpeg", "jpg", "png", "gif", "webp"]:
+             raise HTTPException(status_code=400, detail="Invalid image format. Supported formats: jpeg, jpg, png, gif, webp.")
 
         image_data = base64.b64decode(encoded)
         image_name = f"{uuid.uuid4()}.{file_ext}"
@@ -243,28 +291,42 @@ async def create_polaroid(payload: ImageCreate):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to process image: {e}")
 
-    # Generate chibi stickers from the uploaded image
-    initial_stickers = []
+    # Analyze the image to get a title and chibi generation tasks
+    analysis_result = None
+    initial_description = ""
     try:
-        print(f"Generating chibi stickers for image: {image_path}")
-        sticker_paths = await generate_chibis_from_image(image_path)
-        if sticker_paths:
-            initial_stickers = [Sticker(src=path) for path in sticker_paths]
-            print(f"Successfully generated {len(initial_stickers)} stickers.")
+        print(f"Analyzing polaroid image: {image_path}")
+        analysis_result = await analyse_polaroid_image(image_path)
+        if analysis_result:
+            initial_description = analysis_result.short_title
+            print(f"Analysis complete. Title: '{initial_description}'")
         else:
-            print("Chibi generation resulted in no sticker paths.")
+            print("Image analysis did not return a result.")
     except Exception as e:
         # Log the error but don't block polaroid creation
-        print(f"An error occurred during chibi generation: {e}")
+        print(f"An error occurred during polaroid analysis: {e}")
 
+    # Create the polaroid record immediately
     new_polaroid = Polaroid(
         src=f"/images/{image_name}",
-        stickers=initial_stickers
+        description=initial_description,
+        stickers=[] # Stickers will be added by the background task
     )
 
     polaroids_data = read_polaroids_data()
     polaroids_data.append(new_polaroid.model_dump(mode="json"))
     write_polaroids_data(polaroids_data)
+
+    # If analysis was successful, queue the background task for sticker generation
+    if analysis_result and analysis_result.chibi_tasks:
+        background_tasks.add_task(
+            generate_and_update_stickers, 
+            polaroid_id=new_polaroid.id, 
+            analysis_result=analysis_result
+        )
+        print(f"Queued background task to generate {len(analysis_result.chibi_tasks)} chibi stickers for polaroid {new_polaroid.id}.")
+    else:
+        print(f"No chibi tasks found for polaroid {new_polaroid.id}. Skipping background task.")
 
     return new_polaroid
 

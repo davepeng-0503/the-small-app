@@ -2,7 +2,7 @@ import io
 import os
 import uuid
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from dotenv import load_dotenv
 from google.genai import Client
@@ -57,7 +57,7 @@ def get_gemini_model(model_name: str) -> GoogleModel:
     """
     return GoogleModel(model_name)
 
-# --- Refined Pydantic Model ---
+# --- Pydantic Models ---
 
 class ChibiGenerationTask(BaseModel):
     """
@@ -73,27 +73,35 @@ class ChibiGenerationTask(BaseModel):
     generation_prompt: str = Field(..., 
         description="A complete, detailed prompt for a text-to-image model (like Imagen or DALL-E) to generate this specific chibi. Must include 'chibi style', clothing details, the action, 'transparent background', and cropping instructions.")
 
+class PolaroidAnalysisResult(BaseModel):
+    """
+    The result of analyzing a polaroid image, including a title and chibi tasks.
+    """
+    short_title: str = Field(..., description="A short, fun, descriptive title for the polaroid image (max 5 words).")
+    chibi_tasks: List[ChibiGenerationTask] = Field(..., description="A list of chibi generation tasks based on people in the image.")
+
 
 chibi_designer_agent = Agent(
     model=get_gemini_model(MODEL_NAME),
-    output_type=List[ChibiGenerationTask],
+    output_type=PolaroidAnalysisResult,
     system_prompt=(
-        "You are a master chibi artist and creative director. Your task is to analyze the "
-        "input photo and design cute, fun chibi characters based on the people you see. "
-        "For **each clearly visible person**, you must create one `ChibiGenerationTask`.\n\n"
-        "If there is a group create one extra ChibiGenerationTask featuring all people\n\n"
-        "Your instructions must be precise and very descriptive:\n"
-        "1.  **Character:** Briefly describe the person make sure to say man and woman not boy and girl (e.g., 'person with blonde hair and red jacket').\n"
-        "2.  **Clothing:** The chibi's clothes MUST be a simplified, chibi-style version of the clothes in the photo.\n"
-        "3.  **Action:** Invent a **fun, dynamic, and clearly positive action** for the chibi, like 'waving excitedly from the side', 'running happily', 'jumping for joy', 'sitting and giggling', or 'giving a thumbs-up'.\n"
-        "4.  **Prompt:** Write a final, incredibly detailed (around 350 words) **`generation_prompt`** for a text-to-image AI. This prompt is crucial. It must include:\n"
-        "    - **Art Style:** The style should be 'cute, pastel-colored chibi drawing', avoiding overly saturated or sharp anime aesthetics. Think soft colors and gentle lines and cartoon / comic like.\n"
-        "    - **Critically** Each ChibiGenerationTask should be descriptive enough so that each of the images share the same style\n"
-        "    - The character's full description (clothes, hair, etc.).\n"
-        "    - Their specific action (e.g., 'waving from the side', 'running happily').\n"
-        "    - **Crucially:** You MUST include 'transparent background' so the chibi can be layered.\n"
-        "    - **The prompt *must* also include a thin white border\n"
-))
+        "You are a master chibi artist and creative director. Your task is to analyze an "
+        "input photo and generate two things:\n"
+        "1. A `short_title` for the image: It must be fun, descriptive, and a maximum of 5 words.\n"
+        "2. A list of `chibi_tasks` based on the people in the photo.\n\n"
+        "For the `chibi_tasks`:\n"
+        "- For **each clearly visible person**, create one `ChibiGenerationTask`.\n"
+        "- If there is a group, create one extra `ChibiGenerationTask` featuring all people together.\n"
+        "- The chibi's clothes MUST be a simplified, chibi-style version of what the person is wearing.\n"
+        "- Invent a **fun, dynamic, and positive action** for each chibi (e.g., 'waving excitedly', 'jumping for joy').\n"
+        "- Write a final, detailed `generation_prompt` (around 350 words) for an image AI. This prompt is crucial and must include:\n"
+        "    - Art Style: 'cute, pastel-colored chibi drawing', with soft colors and a cartoon/comic-like feel.\n"
+        "    - Consistency: Ensure prompts are descriptive enough that all generated chibis share the same art style.\n"
+        "    - Details: The character's full description (clothes, hair, etc.) and their action.\n"
+        "    - **Crucially:** It MUST include 'transparent background' for layering.\n"
+        "    - **Border:** It MUST also specify a 'thin white border' around the chibi."
+    )
+)
 
 # --- Helper Function: Image Generation ---
 
@@ -158,16 +166,17 @@ def generate(prompt: str, task_num: int) -> List[str]:
 
 # --- Main Exported Function ---
 
-async def generate_chibis_from_image(image_path: Path | str) -> List[str]:
+async def analyse_polaroid_image(image_path: Path | str) -> Optional[PolaroidAnalysisResult]:
     """
-    Main exported function to generate chibi images from a source image file.
+    Analyzes an image to generate a title and a plan for chibi stickers.
+    This function does NOT generate the actual sticker images.
 
     Args:
         image_path: The file path (string or Path) to the source image.
 
     Returns:
-        A list of server-relative image paths (e.g., ['/images/<uuid4>.png']) 
-        for the successfully generated and saved images.
+        A PolaroidAnalysisResult object containing the title and chibi tasks,
+        or None if analysis fails.
 
     Raises:
         FileNotFoundError: If the provided image_path does not exist.
@@ -181,7 +190,7 @@ async def generate_chibis_from_image(image_path: Path | str) -> List[str]:
         print(f"Error: Image path does not exist: {img_path}")
         raise FileNotFoundError(f"Image path does not exist: {img_path}")
 
-    print(f"Loading image from: {img_path}")
+    print(f"Loading image for analysis from: {img_path}")
     image_bytes = img_path.read_bytes()
     
     # Infer media type from extension
@@ -194,31 +203,20 @@ async def generate_chibis_from_image(image_path: Path | str) -> List[str]:
         
     image_content = BinaryContent(image_bytes, media_type=media_type)
 
-    all_generated_files: List[str] = []
-
-    # Run the chibi designer agent
     try:
-        print("Running chibi designer agent... (This may take a moment)")
-        chibi_res = await chibi_designer_agent.run([image_content])
-        print("\n--- Chibi Generation Tasks ---")
+        print("Running polaroid analysis agent... (This may take a moment)")
+        analysis_result_wrapper = await chibi_designer_agent.run([image_content])
         
-        if not chibi_res.output:
-            print("No chibis were designed. Check the image or prompt.")
-            return []
-            
-        print(f"Agent designed {len(chibi_res.output)} task(s).")
-        for i, task in enumerate(chibi_res.output):
-            print(f"\nTask {i+1}:")
-            print(f"  Character: {task.character_description}")
-            print(f"  Action:    {task.chibi_action}")
-            
-            # Generate function now returns a list of server-relative paths
-            task_filenames = generate(task.generation_prompt, i + 1)
-            all_generated_files.extend(task_filenames)
-            
-        print("-" * 20)
-        print(f"Successfully generated {len(all_generated_files)} image(s).")
-        return all_generated_files
+        if not analysis_result_wrapper.output:
+            print("Analysis returned no output from the agent.")
+            return None
+        
+        analysis_result = analysis_result_wrapper.output
+        print("\n--- Polaroid Analysis Complete ---")
+        print(f"  - Title: {analysis_result.short_title}")
+        print(f"  - Chibi Tasks Designed: {len(analysis_result.chibi_tasks)}")
+        
+        return analysis_result
 
     except Exception as e:
         print(f"An error occurred running the chibi_designer_agent: {e}")
