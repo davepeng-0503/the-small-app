@@ -73,19 +73,6 @@ class ChibiGenerationTask(BaseModel):
     generation_prompt: str = Field(..., 
         description="A complete, detailed prompt for a text-to-image model (like Imagen or DALL-E) to generate this specific chibi. Must include 'chibi style', clothing details, the action, 'transparent background', and cropping instructions.")
 
-# --- Agent 1: Short Description (Defined but not used in main function) ---
-
-short_description_agent = Agent(
-    model=get_gemini_model(FLASH_MODEL_NAME),
-    output_type=str,
-    system_prompt=(
-        "You are a sitcom writer. Your job is to create a very short, catchy episode title "
-        "(max 4 words) for the given photo. Be fun and cute. "
-        "Examples: 'Beach Day Out', 'Chill Date Night', 'The New Couch'."
-    )
-)
-
-# --- Agent 2: Chibi Designer (Used in main function) ---
 
 chibi_designer_agent = Agent(
     model=get_gemini_model(MODEL_NAME),
@@ -171,7 +158,7 @@ def generate(prompt: str, task_num: int) -> List[str]:
 
 # --- Main Exported Function ---
 
-def generate_chibis_from_image(image_path: Path | str) -> List[str]:
+async def generate_chibis_from_image(image_path: Path | str) -> List[str]:
     """
     Main exported function to generate chibi images from a source image file.
 
@@ -212,7 +199,7 @@ def generate_chibis_from_image(image_path: Path | str) -> List[str]:
     # Run the chibi designer agent
     try:
         print("Running chibi designer agent... (This may take a moment)")
-        chibi_res = chibi_designer_agent.run_sync([image_content])
+        chibi_res = await chibi_designer_agent.run([image_content])
         print("\n--- Chibi Generation Tasks ---")
         
         if not chibi_res.output:

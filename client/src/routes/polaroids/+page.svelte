@@ -61,7 +61,7 @@
 							headers: {
 								'Content-Type': 'application/json'
 							},
-							body: JSON.stringify({ image_base_64: e.target.result })
+							body: JSON.stringify({ image_base64: e.target.result })
 						});
 
 						if (!response.ok) {
@@ -129,6 +129,28 @@
 	async function handleSaveAndExit(polaroid: Polaroid) {
 		await saveChanges(polaroid);
 		toggleEdit(polaroid.id);
+	}
+
+	async function deletePolaroid(id: string) {
+		if (!confirm('Are you sure you want to delete this polaroid memory?')) {
+			return;
+		}
+
+		try {
+			const response = await fetch(`${API_URL}/polaroids/${id}`, {
+				method: 'DELETE'
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({ detail: 'Failed to delete polaroid' }));
+				throw new Error(errorData.detail);
+			}
+
+			polaroids = polaroids.filter((p) => p.id !== id);
+		} catch (error) {
+			console.error('Error deleting polaroid:', error);
+			alert(`Error: ${error}`);
+		}
 	}
 
 	function handleStickerUpdate(event: CustomEvent, polaroidId: string) {
@@ -219,7 +241,7 @@
 					{:else}
 						<button
 							on:click={() => toggleEdit(polaroid.id)}
-							class="bg-white/80 text-gray-600 hover:text-gray-900 p-2 rounded-full shadow-md"
+							class="bg-white/80 text-gray-600 hover:text-gray-900 p-2 rounded-full shadow-md z-99"
 							aria-label="Edit polaroid"
 						>
 							<svg
@@ -230,6 +252,26 @@
 							>
 								<path
 									d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"
+								/>
+							</svg>
+						</button>
+						<button
+							on:click={() => deletePolaroid(polaroid.id)}
+							class="bg-white/80 text-red-500 hover:text-red-700 p-2 rounded-full shadow-md"
+							aria-label="Delete polaroid"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
 								/>
 							</svg>
 						</button>
