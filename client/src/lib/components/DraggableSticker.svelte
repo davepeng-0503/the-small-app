@@ -95,7 +95,7 @@
 	bind:this={imgElement}
 	src={sticker.src}
 	alt="A draggable sticker"
-	class="object-contain z-99 transform scale-75"
+	class="object-contain z-99 transform scale-40"
 	{style}
 	on:pointerdown={handlePointerDown}
 	draggable="false"

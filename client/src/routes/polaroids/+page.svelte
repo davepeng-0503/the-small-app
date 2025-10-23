@@ -222,11 +222,11 @@
 	{/if}
 
 	<div
-		class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-4"
+		class="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-4"
 	>
 		{#each polaroids.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) as polaroid (polaroid.id)}
 			<div
-				class="bg-white p-4 pb-12 shadow-lg rounded-sm flex flex-col relative group transform hover:-translate-y-2 transition-transform duration-300"
+				class="bg-white p-4 shadow-lg rounded-sm flex flex-col relative group transform hover:-translate-y-2 transition-transform duration-300"
 			>
 				<div
 					class="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2"
@@ -296,7 +296,7 @@
 					{/if}
 				</div>
 
-				<div class="w-full text-center absolute bottom-2 left-0 right-0 px-4">
+				<div class="w-full text-center px-4 h-20">
 					{#if polaroid.editing}
 						<textarea
 							bind:value={polaroid.description}
@@ -310,16 +310,16 @@
 							on:change={(e) => handleDateChange(e, polaroid.id)}
 						/>
 					{:else}
-						<p class="text-center text-gray-700 font-serif italic text-sm truncate h-5">
+						<p class="text-center text-gray-700 font-serif italic text-sm line-clamp-3 wrap-break-word h-15">
 							{polaroid.description || ''}
 						</p>
-						<p class="text-center text-gray-500 mt-1 text-xs">
+						<div class="text-center text-gray-500 text-xs mt-2">
 							{polaroid.createdAt.toLocaleDateString('en-US', {
 								year: 'numeric',
 								month: 'long',
 								day: 'numeric'
 							})}
-						</p>
+						</div>
 					{/if}
 				</div>
 			</div>
