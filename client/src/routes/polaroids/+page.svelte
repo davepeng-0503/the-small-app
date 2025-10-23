@@ -194,7 +194,7 @@
 						<textarea
 							bind:value={polaroid.description}
 							placeholder="Add a description..."
-							class="text-center w-full border-gray-300 rounded-md shadow-sm focus:border-rose-300 focus:ring focus:ring-rose-200 focus:ring-opacity-50 text-sm p-1 resize-none h-10"
+							class="text-center w-full border-gray-300 rounded-md shadow-sm focus:border-rose-300 focus:ring focus:ring-rose-200 focus:ring-opacity-50 text-sm p-1 resize-none bg-rose-200"
 						></textarea>
 						<input
 							type="date"
