@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Dict, List
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from helpers.chibi_drawing import generate_chibis_from_image
@@ -185,6 +185,35 @@ async def update_watermelon(watermelon_id: str, payload: WatermelonUpdate):
     # Return the updated data, validated through the Pydantic model
     return Watermelon(**watermelon_to_update)
 
+@app.delete("/watermelons/{watermelon_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_watermelon(watermelon_id: str):
+    """Delete a watermelon record and its associated image."""
+    watermelons_data = read_watermelons_data()
+
+    watermelon_to_delete = None
+    index_to_delete = -1
+    for i, item in enumerate(watermelons_data):
+        if item.get("id") == watermelon_id:
+            watermelon_to_delete = item
+            index_to_delete = i
+            break
+
+    if not watermelon_to_delete:
+        raise HTTPException(status_code=404, detail="Watermelon not found")
+
+    # Delete the associated image file
+    if "src" in watermelon_to_delete and watermelon_to_delete["src"]:
+        image_path = os.path.join(IMAGES_DIR, os.path.basename(watermelon_to_delete["src"]))
+        if os.path.exists(image_path):
+            os.remove(image_path)
+
+    # Remove the watermelon from the list
+    watermelons_data.pop(index_to_delete)
+
+    write_watermelons_data(watermelons_data)
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 # --- Polaroid API Endpoints ---
 
 @app.get("/polaroids", response_model=List[Polaroid])
@@ -218,7 +247,7 @@ async def create_polaroid(payload: ImageCreate):
     initial_stickers = []
     try:
         print(f"Generating chibi stickers for image: {image_path}")
-        sticker_paths = generate_chibis_from_image(image_path)
+        sticker_paths = await generate_chibis_from_image(image_path)
         if sticker_paths:
             initial_stickers = [Sticker(src=path) for path in sticker_paths]
             print(f"Successfully generated {len(initial_stickers)} stickers.")
@@ -268,3 +297,44 @@ async def update_polaroid(polaroid_id: str, payload: PolaroidUpdate):
     write_polaroids_data(polaroids_data)
     
     return updated_data
+
+@app.delete("/polaroids/{polaroid_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_polaroid(polaroid_id: str):
+    """Delete a polaroid, its image, and any associated stickers."""
+    polaroids_data = read_polaroids_data()
+
+    polaroid_to_delete = None
+    index_to_delete = -1
+    for i, item in enumerate(polaroids_data):
+        if item.get("id") == polaroid_id:
+            polaroid_to_delete = item
+            index_to_delete = i
+            break
+
+    if not polaroid_to_delete:
+        raise HTTPException(status_code=404, detail="Polaroid not found")
+
+    # Delete the main polaroid image
+    if "src" in polaroid_to_delete and polaroid_to_delete["src"]:
+        image_path = os.path.join(IMAGES_DIR, os.path.basename(polaroid_to_delete["src"]))
+        if os.path.exists(image_path):
+            os.remove(image_path)
+
+    # Delete associated sticker images
+    if "stickers" in polaroid_to_delete:
+        for sticker in polaroid_to_delete["stickers"]:
+            if "src" in sticker and sticker["src"]:
+                sticker_path = os.path.join(IMAGES_DIR, os.path.basename(sticker["src"]))
+                if os.path.exists(sticker_path):
+                    try:
+                        os.remove(sticker_path)
+                    except OSError as e:
+                        # Log error if sticker can't be removed, but don't fail the whole operation
+                        print(f"Error removing sticker file {sticker_path}: {e}")
+
+    # Remove the polaroid from the list
+    polaroids_data.pop(index_to_delete)
+
+    write_polaroids_data(polaroids_data)
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

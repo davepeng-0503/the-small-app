@@ -107,6 +107,28 @@
 		}
 	}
 
+	async function deleteWatermelon(id: string) {
+		if (!confirm('Are you sure you want to delete this watermelon memory?')) {
+			return;
+		}
+
+		try {
+			const response = await fetch(`${API_URL}/watermelons/${id}`, {
+				method: 'DELETE'
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({ detail: 'Failed to delete watermelon' }));
+				throw new Error(errorData.detail);
+			}
+
+			watermelons = watermelons.filter((wm) => wm.id !== id);
+		} catch (error) {
+			console.error('Error deleting watermelon:', error);
+			alert(`Error: ${error}`);
+		}
+	}
+
 	function formatDateForInput(date: Date): string {
 		const d = new Date(date);
 		const year = d.getFullYear();
@@ -161,28 +183,48 @@
 	<div class="space-y-6 p-2">
 		{#each watermelons.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) as watermelon (watermelon.id)}
 			<div class="bg-white p-4 pt-12 shadow-md rounded-lg w-full border border-rose-100 relative">
-				<div class="absolute top-2 left-2 z-10">
+				<div class="absolute top-2 right-2 z-10 flex gap-2">
 					{#if watermelon.editing}
 						<button
 							on:click={() => saveChanges(watermelon)}
-							class="bg-rose-400 hover:bg-rose-500 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105"
+							class="bg-rose-400 hover:bg-rose-500 text-white font-bold py-1 px-3 rounded-full shadow-lg text-sm"
 						>
 							Save
 						</button>
 					{:else}
 						<button
 							on:click={() => toggleEdit(watermelon.id)}
-							class="text-gray-400 hover:text-gray-600 p-2 rounded-full"
+							class="bg-white/80 text-gray-600 hover:text-gray-900 p-2 rounded-full shadow-md"
 							aria-label="Edit watermelon"
 						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
-								class="h-6 w-6"
+								class="h-4 w-4"
 								viewBox="0 0 20 20"
 								fill="currentColor"
 							>
 								<path
 									d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"
+								/>
+							</svg>
+						</button>
+						<button
+							on:click={() => deleteWatermelon(watermelon.id)}
+							class="bg-white/80 text-red-500 hover:text-red-700 p-2 rounded-full shadow-md"
+							aria-label="Delete watermelon"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
 								/>
 							</svg>
 						</button>
