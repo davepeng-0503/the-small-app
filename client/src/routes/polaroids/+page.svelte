@@ -1,16 +1,29 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import DraggableSticker from '$lib/components/DraggableSticker.svelte';
+
+	// Matches backend Pydantic models
+	type Sticker = {
+		id: string;
+		src: string;
+		x: number;
+		y: number;
+		rotation: number;
+		scale: number;
+	};
 
 	type Polaroid = {
 		id: string;
 		src: string;
 		createdAt: Date;
 		description: string;
+		stickers: Sticker[];
 		editing: boolean;
 	};
 
 	const API_URL = 'http://localhost:8001';
 	let polaroids: Polaroid[] = [];
+	let polaroidElements: { [id: string]: HTMLElement } = {};
 
 	onMount(async () => {
 		try {
@@ -23,7 +36,12 @@
 				...p,
 				src: `${API_URL}${p.src}`,
 				createdAt: new Date(p.createdAt),
-				editing: false
+				editing: false,
+				stickers:
+					p.stickers?.map((s: any) => ({
+						...s,
+						src: `${API_URL}${s.src}`
+					})) || []
 			}));
 		} catch (error) {
 			console.error('Error fetching polaroids:', error);
@@ -43,7 +61,7 @@
 							headers: {
 								'Content-Type': 'application/json'
 							},
-							body: JSON.stringify({ image_base64: e.target.result })
+							body: JSON.stringify({ image_base_64: e.target.result })
 						});
 
 						if (!response.ok) {
@@ -55,7 +73,12 @@
 							...newPolaroidData,
 							src: `${API_URL}${newPolaroidData.src}`,
 							createdAt: new Date(newPolaroidData.createdAt),
-							editing: true // Start in editing mode
+							editing: true, // Start in editing mode
+							stickers:
+								newPolaroidData.stickers?.map((s: any) => ({
+									...s,
+									src: `${API_URL}${s.src}`
+								})) || []
 						};
 						polaroids = [...polaroids, newPolaroid];
 					} catch (error) {
@@ -74,6 +97,12 @@
 
 	async function saveChanges(polaroid: Polaroid) {
 		try {
+			// Strip the API_URL from sticker sources before sending to the backend
+			const stickersToSave = polaroid.stickers.map((s) => ({
+				...s,
+				src: s.src.replace(API_URL, '')
+			}));
+
 			const response = await fetch(`${API_URL}/polaroids/${polaroid.id}`, {
 				method: 'PUT',
 				headers: {
@@ -81,7 +110,8 @@
 				},
 				body: JSON.stringify({
 					description: polaroid.description,
-					createdAt: polaroid.createdAt.toISOString()
+					createdAt: polaroid.createdAt.toISOString(),
+					stickers: stickersToSave
 				})
 			});
 
@@ -89,12 +119,33 @@
 				const errorData = await response.json();
 				throw new Error(errorData.detail || 'Failed to save polaroid');
 			}
-
-			toggleEdit(polaroid.id);
+			// No longer toggles edit mode, allowing for autosave on drag
 		} catch (error) {
 			console.error('Error saving polaroid:', error);
 			alert(`Error: ${error}`);
 		}
+	}
+
+	async function handleSaveAndExit(polaroid: Polaroid) {
+		await saveChanges(polaroid);
+		toggleEdit(polaroid.id);
+	}
+
+	function handleStickerUpdate(event: CustomEvent, polaroidId: string) {
+		const { id: stickerId, x, y } = event.detail;
+
+		polaroids = polaroids.map((p) => {
+			if (p.id === polaroidId) {
+				const newStickers = p.stickers.map((s) => {
+					if (s.id === stickerId) {
+						return { ...s, x, y };
+					}
+					return s;
+				});
+				return { ...p, stickers: newStickers };
+			}
+			return p;
+		});
 	}
 
 	function formatDateForInput(date: Date): string {
@@ -156,11 +207,11 @@
 				class="bg-white p-4 pb-12 shadow-lg rounded-sm flex flex-col relative group transform hover:-translate-y-2 transition-transform duration-300"
 			>
 				<div
-					class="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2"
+					class="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2"
 				>
 					{#if polaroid.editing}
 						<button
-							on:click={() => saveChanges(polaroid)}
+							on:click={() => handleSaveAndExit(polaroid)}
 							class="bg-rose-400 hover:bg-rose-500 text-white font-bold py-1 px-3 rounded-full shadow-lg text-sm"
 						>
 							Save
@@ -185,8 +236,22 @@
 					{/if}
 				</div>
 
-				<div class="bg-gray-800 border-2 border-gray-100">
+				<div
+					class="relative bg-gray-800 border-2 border-gray-100"
+					bind:this={polaroidElements[polaroid.id]}
+				>
 					<img src={polaroid.src} alt="A polaroid" class="w-full h-auto aspect-square object-cover" />
+					{#if polaroid.stickers}
+						{#each polaroid.stickers as sticker (sticker.id)}
+							<DraggableSticker
+								{sticker}
+								editing={polaroid.editing}
+								polaroidElement={polaroidElements[polaroid.id]}
+								on:update={(e) => handleStickerUpdate(e, polaroid.id)}
+								on:dragend={() => saveChanges(polaroid)}
+							/>
+						{/each}
+					{/if}
 				</div>
 
 				<div class="w-full text-center absolute bottom-2 left-0 right-0 px-4">

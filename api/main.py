@@ -1,13 +1,14 @@
-import os
-import json
-import uuid
 import base64
+import json
+import os
+import uuid
 from datetime import datetime
-from typing import List, Dict
+from typing import Dict, List
 
 from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from helpers.chibi_drawing import generate_chibis_from_image
 from pydantic import BaseModel, Field
 
 # --- General Setup ---
@@ -68,15 +69,25 @@ def write_watermelons_data(data: List[Dict]):
 
 # --- Polaroid Feature Models & Helpers ---
 
+class Sticker(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    src: str
+    x: float = 0.0
+    y: float = 0.0
+    rotation: float = 0.0
+    scale: float = 1.0
+
 class Polaroid(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     src: str
     createdAt: datetime = Field(default_factory=datetime.now)
     description: str = ""
+    stickers: List[Sticker] = Field(default_factory=list)
 
 class PolaroidUpdate(BaseModel):
     createdAt: datetime
     description: str
+    stickers: List[Sticker]
 
 def read_polaroids_data() -> List[Dict]:
     """Reads polaroid data from the JSON file."""
@@ -180,11 +191,12 @@ async def update_watermelon(watermelon_id: str, payload: WatermelonUpdate):
 async def get_polaroids():
     """Retrieve all saved polaroid records."""
     data = read_polaroids_data()
+    # Pydantic will gracefully handle old data without stickers, defaulting to []
     return [Polaroid(**item) for item in data]
 
 @app.post("/polaroids", response_model=Polaroid, status_code=201)
 async def create_polaroid(payload: ImageCreate):
-    """Create a new polaroid record from an uploaded image."""
+    """Create a new polaroid, save the image, and generate chibi stickers."""
     try:
         header, encoded = payload.image_base64.split(",", 1)
         file_ext = header.split("/")[1].split(";")[0]
@@ -202,7 +214,24 @@ async def create_polaroid(payload: ImageCreate):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to process image: {e}")
 
-    new_polaroid = Polaroid(src=f"/images/{image_name}")
+    # Generate chibi stickers from the uploaded image
+    initial_stickers = []
+    try:
+        print(f"Generating chibi stickers for image: {image_path}")
+        sticker_paths = generate_chibis_from_image(image_path)
+        if sticker_paths:
+            initial_stickers = [Sticker(src=path) for path in sticker_paths]
+            print(f"Successfully generated {len(initial_stickers)} stickers.")
+        else:
+            print("Chibi generation resulted in no sticker paths.")
+    except Exception as e:
+        # Log the error but don't block polaroid creation
+        print(f"An error occurred during chibi generation: {e}")
+
+    new_polaroid = Polaroid(
+        src=f"/images/{image_name}",
+        stickers=initial_stickers
+    )
 
     polaroids_data = read_polaroids_data()
     polaroids_data.append(new_polaroid.model_dump(mode="json"))
@@ -212,21 +241,30 @@ async def create_polaroid(payload: ImageCreate):
 
 @app.put("/polaroids/{polaroid_id}", response_model=Polaroid)
 async def update_polaroid(polaroid_id: str, payload: PolaroidUpdate):
-    """Update a polaroid's description and creation date."""
+    """Update a polaroid's description, creation date, and stickers."""
     polaroids_data = read_polaroids_data()
     
     polaroid_to_update = None
-    for item in polaroids_data:
+    index_to_update = -1
+    for i, item in enumerate(polaroids_data):
         if item.get("id") == polaroid_id:
             polaroid_to_update = item
+            index_to_update = i
             break
 
     if not polaroid_to_update:
         raise HTTPException(status_code=404, detail="Polaroid not found")
 
-    polaroid_to_update["description"] = payload.description
-    polaroid_to_update["createdAt"] = payload.createdAt
+    # Create a new Polaroid object from the payload to ensure all fields are validated
+    updated_data = Polaroid(
+        id=polaroid_id,
+        src=polaroid_to_update['src'], # src should not be changed on update
+        description=payload.description,
+        createdAt=payload.createdAt,
+        stickers=payload.stickers
+    )
 
+    polaroids_data[index_to_update] = updated_data.model_dump(mode='json')
     write_polaroids_data(polaroids_data)
     
-    return Polaroid(**polaroid_to_update)
+    return updated_data
