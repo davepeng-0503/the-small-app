@@ -1,10 +1,12 @@
-@echo off
-setlocal
-
+@ECHO OFF
 :: A script to set up and run the full application (backend and frontend) on Windows.
 :: It handles Python and Node.js dependencies and runs both servers in separate windows.
+::
+:: V6: Added 'call' before 'pip install' and 'npm install'.
+::     Without 'call', the script would transfer execution to npm/pip
+::     and never return to this script, causing it to stop prematurely.
 
-ECHO --- The Small App Setup & Run Script ---
+ECHO --- The Small App Setup ---
 
 :: --- Step 1: Environment File Check ---
 ECHO.
@@ -44,25 +46,28 @@ ECHO ✅ System dependencies found.
 :: --- Step 3: Backend Setup ---
 ECHO.
 ECHO [3/5] Setting up Backend (API)...
-pushd api
+:: Move into the API directory
+cd /d "%~dp0api"
 
 IF NOT EXIST "venv" (
     ECHO Creating Python virtual environment in 'api\venv'...
     python -m venv venv
     if %errorlevel% neq 0 (
         ECHO ERROR: Failed to create Python virtual environment.
-        popd
+        :: Return to script root on failure
+        cd /d "%~dp0"
         goto end
     )
 )
 
 ECHO Activating virtual environment and installing Python dependencies...
 call venv\Scripts\activate.bat
-pip install -r requirements.txt
+call pip install -r requirements.txt
 if %errorlevel% neq 0 (
     ECHO ERROR: Failed to install Python dependencies.
     call venv\Scripts\deactivate.bat
-    popd
+    :: Return to script root on failure
+    cd /d "%~dp0"
     goto end
 )
 
@@ -73,23 +78,27 @@ if %errorlevel% neq 0 (
 )
 
 call venv\Scripts\deactivate.bat
-popd
+:: Return to script root after success
+cd /d "%~dp0"
 ECHO ✅ Backend setup complete.
 
 :: --- Step 4: Frontend Setup ---
 ECHO.
 ECHO [4/5] Setting up Frontend (Client)...
-pushd client
+:: Move into the Client directory
+cd /d "%~dp0client"
 
 ECHO Installing npm dependencies from package.json...
-npm install
+call npm install
 if %errorlevel% neq 0 (
     ECHO ERROR: Failed to install npm dependencies.
-    popd
+    :: Return to script root on failure
+    cd /d "%~dp0"
     goto end
 )
 
-popd
+:: Return to script root after success
+cd /d "%~dp0"
 ECHO ✅ Frontend setup complete.
 
 :: --- Step 5: Run Application ---
@@ -97,10 +106,18 @@ ECHO.
 ECHO [5/5] Starting Application...
 
 ECHO Starting FastAPI server in a new window...
-start "FastAPI Backend" cmd /k "cd /d "%~dp0api" && call venv\Scripts\activate.bat && uvicorn main:app --host 0.0.0.0 --port 9999"
+:: Change directory to the API folder first.
+:: The 'start' command will make the new window inherit this directory as its starting path.
+cd /d "%~dp0api"
+start "FastAPI Backend" cmd /k "call venv\Scripts\activate.bat && uvicorn main:app --host 0.0.0.0 --port 9999"
 
 ECHO Starting SvelteKit dev server in a new window...
-start "SvelteKit Frontend" cmd /k "cd /d "%~dp0client" && npm run dev -- -p 9998"
+:: Change directory to the client folder first.
+cd /d "%~dp0client"
+start "SvelteKit Frontend" cmd /k "call npm run dev -- --port 9998"
+
+:: Return to the script's root directory
+cd /d "%~dp0"
 
 ECHO Waiting for servers to initialize...
 timeout /t 5 /nobreak > nul
@@ -118,3 +135,4 @@ ECHO.
 
 :end
 pause
+
