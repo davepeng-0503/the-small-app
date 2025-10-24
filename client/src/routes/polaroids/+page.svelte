@@ -179,9 +179,10 @@
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-4">
     {#each polaroids.sort((a,b)=>b.createdAt-a.createdAt) as polaroid (polaroid.id)}
       <div class="bg-white p-4 shadow-lg rounded relative group"
-      bind:this={polaroidElements[polaroid.id]}>
+      bind:this={polaroidElements[polaroid.id]}
+      >
         
-        <div class="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 z-[99]">
+        <div class="absolute -top-12 right-2 flex gap-2 opacity-0 group-hover:opacity-100 z-99 w-full">
           {#if polaroid.editing}
             <button on:click={() => handleSaveAndExit(polaroid)} class="bg-rose-400 text-white rounded-full px-3 py-1 text-sm">Save</button>
           {:else}
@@ -196,12 +197,14 @@
 
         <div class="relative w-full [perspective:1000px]">
           
-          <div class="invisible">
+          <div class="invisible"
+          >
             <img src={polaroid.src} alt="" class="w-full h-auto aspect-square object-cover" />
           </div>
 
           <div
             class="absolute top-0 left-0 w-full h-full transition-transform duration-700 ease-in-out transform-style-3d"
+            on:click={() => toggleSide(polaroid)}
             class:rotate-y-180={polaroid.showBack}
           >
             <div class="absolute w-full h-full top-0 left-0 backface-hidden">
@@ -221,13 +224,20 @@
             </div>
 
             <div class="absolute w-full h-full top-0 left-0 backface-hidden rotate-y-180">
-              <div class="bg-rose-100 border-2 border-gray-200 rounded overflow-auto h-full flex flex-col">
+              <div class="bg-gray-100 border-2 border-gray-200 rounded overflow-auto h-full flex flex-col">
                 {#if polaroid.editing}
-                  <textarea
-                    bind:value={polaroid.diaryEntry}
-                    placeholder="Write your diary entry..."
-                    class="p-2 w-full text-sm border rounded bg-white shadow-inner flex-grow min-h-[100px]"
-                  ></textarea>
+                <textarea
+                bind:value={polaroid.diaryEntry}
+                placeholder="Add a diary entry..."
+                class="p-3 w-full text-gray-700 text-sm rounded whitespace-pre-line italic bg-transparent border-none focus:ring-0 focus:outline-none resize-none"
+                style="box-shadow: none; overflow: hidden;"
+                rows="1"
+                on:input={(e) => {
+                  const target = e.target as HTMLTextAreaElement;
+                  target.style.height = 'auto';
+                  target.style.height = target.scrollHeight + 'px';
+                }}
+              ></textarea>
                 {:else}
                   <p class="bg-gray-100 p-3 text-sm text-gray-700 whitespace-pre-line italic flex-grow min-h-[100px]">{polaroid.diaryEntry || 'No diary entry yet.'}</p>
                 {/if}
@@ -248,8 +258,18 @@
         </div>
         <div class="w-full text-center mt-3">
           {#if polaroid.editing}
-            <textarea bind:value={polaroid.description} placeholder="Add a description..." class="w-full border p-1 text-sm rounded bg-rose-200"></textarea>
-            <input type="date" class="mt-1 w-full border text-xs rounded" value={formatDateForInput(polaroid.createdAt)} on:change={(e)=>handleDateChange(e,polaroid.id)} />
+          <textarea
+          bind:value={polaroid.description}
+          placeholder="Add a description..."
+          class="w-full text-center p-0 text-sm rounded bg-transparent border-none focus:ring-0 focus:outline-none resize-none"
+          style="box-shadow: none; overflow: hidden;"
+          rows="1"
+          on:input={(e) => {
+            const target = e.target as HTMLTextAreaElement;
+            target.style.height = 'auto';
+            target.style.height = target.scrollHeight + 'px';
+          }}
+        ></textarea><input type="date" class="mt-1 w-full border text-xs rounded" value={formatDateForInput(polaroid.createdAt)} on:change={(e)=>handleDateChange(e,polaroid.id)} />
           {:else}
             <p class="italic text-sm text-gray-700">{polaroid.description}</p>
             <div class="text-xs text-gray-500">{polaroid.createdAt.toLocaleDateString()}</div>
