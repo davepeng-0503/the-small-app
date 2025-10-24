@@ -1,9 +1,9 @@
 import io
 import os
 import uuid
-from pathlib import Path
 from typing import List, Optional
 
+import boto3
 from dotenv import load_dotenv
 from google.genai import Client
 from PIL import Image
@@ -12,10 +12,32 @@ from pydantic_ai import Agent, BinaryContent
 from pydantic_ai.models.google import GoogleModel
 from rembg import remove
 
-# --- Storage Configuration ---
-STORAGE_DIR = "storage"
-IMAGES_DIR = os.path.join(STORAGE_DIR, "images")
-os.makedirs(IMAGES_DIR, exist_ok=True)
+# --- Environment and S3 Configuration ---
+load_dotenv()
+
+# S3 Client
+S3_BUCKET_NAME = os.getenv("AWS_S3_BUCKET_NAME")
+AWS_REGION = os.getenv("AWS_REGION")
+s3_client = None
+
+# Check for all required S3 env vars
+if all([os.getenv("AWS_ACCESS_KEY_ID"), os.getenv("AWS_SECRET_ACCESS_KEY"), S3_BUCKET_NAME, AWS_REGION]):
+    s3_client = boto3.client(
+        "s3",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+        region_name=AWS_REGION
+    )
+else:
+    print("Warning: S3 environment variables not fully configured. File uploads will fail.")
+
+def get_s3_url(file_name: str) -> str:
+    """Generates a public URL for a file in S3."""
+    if not S3_BUCKET_NAME or not AWS_REGION:
+        return ""
+    # Note: For this URL structure to work, the bucket must have public access enabled
+    # and the object ACL must be "public-read".
+    return f"https://{S3_BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com/{file_name}"
 
 # --- Gemini Configuration ---
 
@@ -24,13 +46,11 @@ FLASH_MODEL_NAME = "gemini-2.5-flash" # Using a fast model for the simple task
 
 def configure_gemini() -> None:
     """
-    Loads environment variables from a .env file and validates that the
-    GOOGLE_API_KEY is present.
+    Validates that the GOOGLE_API_KEY is present in the environment.
 
     Raises:
         ValueError: If the GOOGLE_API_KEY is not set in the environment.
     """
-    load_dotenv()
     gemini_api_key = os.getenv("GOOGLE_API_KEY")
     if not gemini_api_key:
         raise ValueError("GOOGLE_API_KEY is not set in the environment variables.")
@@ -42,7 +62,7 @@ except ValueError as e:
     print(f"Configuration Error: {e}")
     print("Please ensure you have a .env file with GOOGLE_API_KEY set.")
     # In a real application, you might exit or handle this more gracefully
-    # For this script, we'll let it proceed, but agent/client calls will fail.
+    # For this script, we"ll let it proceed, but agent/client calls will fail.
 
 
 def get_gemini_model(model_name: str) -> GoogleModel:
@@ -107,15 +127,19 @@ chibi_designer_agent = Agent(
 
 def generate(prompt: str, task_num: int) -> List[str]:
     """
-    Generates image(s) for a single task prompt and saves them to the images storage directory.
+    Generates image(s) for a single task prompt and uploads them to S3.
 
     Args:
         prompt: The generation prompt for the image model.
         task_num: The sequential number of the task (for logging).
 
     Returns:
-        A list of server-relative image paths (e.g., ['/images/<uuid4>.png']) for the saved images.
+        A list of public S3 URLs for the generated images.
     """
+    if not s3_client or not S3_BUCKET_NAME:
+        print("  -> ERROR: S3 is not configured. Cannot generate and upload images.")
+        return []
+
     saved_files: List[str] = []
     client = Client(api_key=os.environ.get("GOOGLE_API_KEY"))
 
@@ -141,7 +165,6 @@ def generate(prompt: str, task_num: int) -> List[str]:
         # Loop through all generated images (even though we only request 1)
         for generated_image in result.generated_images:
             filename = f"{uuid.uuid4()}.png"
-            save_path = os.path.join(IMAGES_DIR, filename)
 
             if generated_image.image is not None and generated_image.image.image_bytes is not None:
                 # This is your variable holding the image bytes
@@ -151,12 +174,26 @@ def generate(prompt: str, task_num: int) -> List[str]:
                 image_data = io.BytesIO(image_bytes)
 
                 # 2. Open the image using Image.open(), which can read from a file-like object
+                # and remove the background.
                 img = Image.open(image_data)
                 img = remove(img)
-                img.save(save_path)
-                print(f"  -> Successfully saved to {save_path}")
-                api_path = f"/images/{filename}"
-                saved_files.append(api_path)
+
+                # 3. Save the processed image to an in-memory buffer
+                output_buffer = io.BytesIO()
+                img.save(output_buffer, format="PNG")
+                output_buffer.seek(0) # Rewind the buffer to the beginning
+
+                # 4. Upload the buffer's content to S3
+                s3_client.upload_fileobj(
+                    output_buffer,
+                    S3_BUCKET_NAME,
+                    filename,
+                    ExtraArgs={"ContentType": "image/png", "ACL": "public-read"}
+                )
+                
+                image_url = get_s3_url(filename)
+                print(f"  -> Successfully uploaded to S3: {image_url}")
+                saved_files.append(image_url)
         
         return saved_files
 
@@ -166,40 +203,24 @@ def generate(prompt: str, task_num: int) -> List[str]:
 
 # --- Main Exported Function ---
 
-async def analyse_polaroid_image(image_path: Path | str) -> Optional[PolaroidAnalysisResult]:
+async def analyse_polaroid_image(image_bytes: bytes, file_ext: str) -> Optional[PolaroidAnalysisResult]:
     """
     Analyzes an image to generate a title and a plan for chibi stickers.
     This function does NOT generate the actual sticker images.
 
     Args:
-        image_path: The file path (string or Path) to the source image.
+        image_bytes: The byte content of the source image.
+        file_ext: The file extension of the image (e.g., "jpeg", "png", "webp").
 
     Returns:
         A PolaroidAnalysisResult object containing the title and chibi tasks,
         or None if analysis fails.
 
     Raises:
-        FileNotFoundError: If the provided image_path does not exist.
         Exception: Can raise exceptions from the AI model if API calls fail.
     """
-    # Ensure path is a Path object
-    img_path = Path(image_path)
-
-    # Ensure the image exists before reading
-    if not img_path.exists():
-        print(f"Error: Image path does not exist: {img_path}")
-        raise FileNotFoundError(f"Image path does not exist: {img_path}")
-
-    print(f"Loading image for analysis from: {img_path}")
-    image_bytes = img_path.read_bytes()
-    
-    # Infer media type from extension
-    media_type = "image/jpeg" # Default
-    suffix = img_path.suffix.lower()
-    if suffix == ".png":
-        media_type = "image/png"
-    elif suffix == ".webp":
-        media_type = "image/webp"
+    # Infer media type from extension, default to jpeg
+    media_type = f"image/{file_ext}" if file_ext else "image/jpeg"
         
     image_content = BinaryContent(image_bytes, media_type=media_type)
 

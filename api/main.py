@@ -1,33 +1,56 @@
 import base64
+import io
 import json
 import os
 import uuid
 from datetime import datetime
 from typing import Dict, List
+from urllib.parse import urlparse
 
+import boto3
+from botocore.exceptions import ClientError
+from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from helpers.chibi_drawing import (PolaroidAnalysisResult,
                                      analyse_polaroid_image, generate)
 from pydantic import BaseModel, Field
 
+# --- Environment and S3 Configuration ---
+load_dotenv()
+
+# S3 Client
+S3_BUCKET_NAME = os.getenv("AWS_S3_BUCKET_NAME")
+AWS_REGION = os.getenv("AWS_REGION")
+s3_client = None
+
+# Check for all required S3 env vars
+if all([os.getenv("AWS_ACCESS_KEY_ID"), os.getenv("AWS_SECRET_ACCESS_KEY"), S3_BUCKET_NAME, AWS_REGION]):
+    s3_client = boto3.client(
+        "s3",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+        region_name=AWS_REGION
+    )
+else:
+    print("Warning: S3 environment variables not fully configured. File operations will fail.")
+
+def get_s3_url(file_name: str) -> str:
+    """Generates a public URL for a file in S3."""
+    if not S3_BUCKET_NAME or not AWS_REGION or not s3_client:
+        return ""
+    return f"https://{S3_BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com/{file_name}"
+
+def get_s3_key_from_url(url: str) -> str:
+    """Extracts the object key from a full S3 URL."""
+    path = urlparse(url).path
+    return path.lstrip('/')
+
 # --- General Setup ---
 
-# Define storage paths
-STORAGE_DIR = "storage"
-IMAGES_DIR = os.path.join(STORAGE_DIR, "images")
-WATERMELONS_DATA_FILE = os.path.join(STORAGE_DIR, "watermelons.json")
-POLAROIDS_DATA_FILE = os.path.join(STORAGE_DIR, "polaroids.json")
-
-# Ensure storage directories and data files exist on startup
-os.makedirs(IMAGES_DIR, exist_ok=True)
-if not os.path.exists(WATERMELONS_DATA_FILE):
-    with open(WATERMELONS_DATA_FILE, "w") as f:
-        json.dump([], f)
-if not os.path.exists(POLAROIDS_DATA_FILE):
-    with open(POLAROIDS_DATA_FILE, "w") as f:
-        json.dump([], f)
+# Define data file keys for S3
+WATERMELONS_DATA_FILE = "data/watermelons.json"
+POLAROIDS_DATA_FILE = "data/polaroids.json"
 
 # --- Common Models ---
 
@@ -54,19 +77,40 @@ class WatermelonUpdate(BaseModel):
     createdAt: datetime
 
 def read_watermelons_data() -> List[Dict]:
-    """Reads watermelon data from the JSON file."""
-    if not os.path.exists(WATERMELONS_DATA_FILE) or os.path.getsize(WATERMELONS_DATA_FILE) == 0:
+    """Reads watermelon data from the JSON file in S3."""
+    if not s3_client or not S3_BUCKET_NAME:
+        print("S3 client not configured, cannot read data.")
         return []
-    with open(WATERMELONS_DATA_FILE, "r") as f:
-        try:
-            return json.load(f)
-        except json.JSONDecodeError:
+    try:
+        response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=WATERMELONS_DATA_FILE)
+        content = response["Body"].read().decode("utf-8")
+        if not content:
             return []
+        return json.loads(content)
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "NoSuchKey":
+            return []  # File doesn't exist yet, return empty list
+        else:
+            print(f"Error reading from S3: {e}")
+            raise
+    except json.JSONDecodeError:
+        return []  # File is empty or corrupt
 
 def write_watermelons_data(data: List[Dict]):
-    """Writes watermelon data to the JSON file."""
-    with open(WATERMELONS_DATA_FILE, "w") as f:
-        json.dump(data, f, indent=4, default=str)
+    """Writes watermelon data to the JSON file in S3."""
+    if not s3_client or not S3_BUCKET_NAME:
+        print("S3 client not configured, cannot write data.")
+        return
+    try:
+        s3_client.put_object(
+            Bucket=S3_BUCKET_NAME,
+            Key=WATERMELONS_DATA_FILE,
+            Body=json.dumps(data, indent=4, default=str),
+            ContentType="application/json"
+        )
+    except ClientError as e:
+        print(f"Error writing to S3: {e}")
+        raise
 
 # --- Polaroid Feature Models & Helpers ---
 
@@ -91,20 +135,40 @@ class PolaroidUpdate(BaseModel):
     stickers: List[Sticker]
 
 def read_polaroids_data() -> List[Dict]:
-    """Reads polaroid data from the JSON file."""
-    if not os.path.exists(POLAROIDS_DATA_FILE) or os.path.getsize(POLAROIDS_DATA_FILE) == 0:
+    """Reads polaroid data from the JSON file in S3."""
+    if not s3_client or not S3_BUCKET_NAME:
+        print("S3 client not configured, cannot read data.")
         return []
-    with open(POLAROIDS_DATA_FILE, "r") as f:
-        try:
-            return json.load(f)
-        except json.JSONDecodeError:
+    try:
+        response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=POLAROIDS_DATA_FILE)
+        content = response["Body"].read().decode("utf-8")
+        if not content:
             return []
+        return json.loads(content)
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "NoSuchKey":
+            return []  # File doesn't exist yet, return empty list
+        else:
+            print(f"Error reading from S3: {e}")
+            raise
+    except json.JSONDecodeError:
+        return []  # File is empty or corrupt
 
 def write_polaroids_data(data: List[Dict]):
-    """Writes polaroid data to the JSON file."""
-    with open(POLAROIDS_DATA_FILE, "w") as f:
-        json.dump(data, f, indent=4, default=str)
-
+    """Writes polaroid data to the JSON file in S3."""
+    if not s3_client or not S3_BUCKET_NAME:
+        print("S3 client not configured, cannot write data.")
+        return
+    try:
+        s3_client.put_object(
+            Bucket=S3_BUCKET_NAME,
+            Key=POLAROIDS_DATA_FILE,
+            Body=json.dumps(data, indent=4, default=str),
+            ContentType="application/json"
+        )
+    except ClientError as e:
+        print(f"Error writing to S3: {e}")
+        raise
 
 # --- FastAPI App Initialization ---
 
@@ -119,10 +183,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files directory to serve images
-app.mount("/images", StaticFiles(directory=IMAGES_DIR), name="images")
-
-
 # --- Watermelon API Endpoints ---
 
 @app.get("/watermelons", response_model=List[Watermelon])
@@ -133,29 +193,34 @@ async def get_watermelons():
 
 @app.post("/watermelons", response_model=Watermelon, status_code=201)
 async def create_watermelon(payload: ImageCreate):
-    """Create a new watermelon record from an uploaded image."""
+    """Create a new watermelon record by uploading an image to S3."""
+    if not s3_client or not S3_BUCKET_NAME:
+        raise HTTPException(status_code=500, detail="S3 storage is not configured on the server.")
+    
     try:
-        # The base64 string from a data URL includes a header, e.g., "data:image/jpeg;base64,"
         header, encoded = payload.image_base64.split(",", 1)
-        file_ext = header.split("/")[1].split(";")[0]
+        media_type = header.split(":")[1].split(";")[0]
+        file_ext = media_type.split("/")[1]
         
         if file_ext not in ["jpeg", "jpg", "png", "gif"]:
              raise HTTPException(status_code=400, detail="Invalid image format. Supported formats: jpeg, jpg, png, gif.")
 
         image_data = base64.b64decode(encoded)
-        image_name = f"{uuid.uuid4()}.{file_ext}"
-        image_path = os.path.join(IMAGES_DIR, image_name)
+        image_name = f"images/watermelons/{uuid.uuid4()}.{file_ext}"
         
-        with open(image_path, "wb") as f:
-            f.write(image_data)
+        s3_client.upload_fileobj(
+            io.BytesIO(image_data),
+            S3_BUCKET_NAME,
+            image_name,
+            ExtraArgs={"ContentType": media_type, "ACL": "public-read"}
+        )
+        image_url = get_s3_url(image_name)
 
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to process image: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to process and upload image: {e}")
 
-    # Create a new watermelon with default ratings
-    new_watermelon = Watermelon(src=f"/images/{image_name}")
+    new_watermelon = Watermelon(src=image_url)
 
-    # Save to our JSON "database"
     watermelons_data = read_watermelons_data()
     watermelons_data.append(new_watermelon.model_dump(mode="json"))
     write_watermelons_data(watermelons_data)
@@ -176,19 +241,17 @@ async def update_watermelon(watermelon_id: str, payload: WatermelonUpdate):
     if not watermelon_to_update:
         raise HTTPException(status_code=404, detail="Watermelon not found")
 
-    # Update ratings in the dictionary
     watermelon_to_update["rachy"] = payload.rachy.model_dump()
     watermelon_to_update["davey"] = payload.davey.model_dump()
     watermelon_to_update["createdAt"] = payload.createdAt
 
     write_watermelons_data(watermelons_data)
     
-    # Return the updated data, validated through the Pydantic model
     return Watermelon(**watermelon_to_update)
 
 @app.delete("/watermelons/{watermelon_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_watermelon(watermelon_id: str):
-    """Delete a watermelon record and its associated image."""
+    """Delete a watermelon record and its associated image from S3."""
     watermelons_data = read_watermelons_data()
 
     watermelon_to_delete = None
@@ -202,15 +265,14 @@ async def delete_watermelon(watermelon_id: str):
     if not watermelon_to_delete:
         raise HTTPException(status_code=404, detail="Watermelon not found")
 
-    # Delete the associated image file
-    if "src" in watermelon_to_delete and watermelon_to_delete["src"]:
-        image_path = os.path.join(IMAGES_DIR, os.path.basename(watermelon_to_delete["src"]))
-        if os.path.exists(image_path):
-            os.remove(image_path)
+    if "src" in watermelon_to_delete and watermelon_to_delete["src"] and s3_client:
+        image_key = get_s3_key_from_url(watermelon_to_delete["src"])
+        try:
+            s3_client.delete_object(Bucket=S3_BUCKET_NAME, Key=image_key)
+        except ClientError as e:
+            print(f"Error removing S3 object {image_key}: {e}")
 
-    # Remove the watermelon from the list
     watermelons_data.pop(index_to_delete)
-
     write_watermelons_data(watermelons_data)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -224,9 +286,7 @@ def generate_and_update_stickers(polaroid_id: str, analysis_result: PolaroidAnal
     print(f"Starting background sticker generation for polaroid_id: {polaroid_id}")
     all_sticker_paths = []
     
-    # Generate images for each task
     for i, task in enumerate(analysis_result.chibi_tasks):
-        # generate() returns a list of paths, so we extend our main list
         sticker_paths = generate(prompt=task.generation_prompt, task_num=i + 1)
         if sticker_paths:
             all_sticker_paths.extend(sticker_paths)
@@ -237,7 +297,6 @@ def generate_and_update_stickers(polaroid_id: str, analysis_result: PolaroidAnal
 
     new_stickers = [Sticker(src=path) for path in all_sticker_paths]
 
-    # This part is a critical section. In a real app, use a lock or a proper DB.
     polaroids_data = read_polaroids_data()
     
     polaroid_to_update = None
@@ -252,7 +311,6 @@ def generate_and_update_stickers(polaroid_id: str, analysis_result: PolaroidAnal
         print(f"Background task ERROR: Could not find polaroid with id {polaroid_id} to update.")
         return
 
-    # Update the stickers list for the found polaroid
     polaroid_to_update["stickers"] = [s.model_dump(mode='json') for s in new_stickers]
     polaroids_data[index_to_update] = polaroid_to_update
 
@@ -264,60 +322,62 @@ def generate_and_update_stickers(polaroid_id: str, analysis_result: PolaroidAnal
 async def get_polaroids():
     """Retrieve all saved polaroid records."""
     data = read_polaroids_data()
-    # Pydantic will gracefully handle old data without stickers, defaulting to []
     return [Polaroid(**item) for item in data]
 
 @app.post("/polaroids", response_model=Polaroid, status_code=201)
 async def create_polaroid(payload: ImageCreate, background_tasks: BackgroundTasks):
     """
-    Create a new polaroid from an image.
-    This analyzes the image to get a title, creates the polaroid record immediately,
-    and then queues a background task to generate the chibi stickers.
+    Create a new polaroid by uploading to S3, analyzing the image for a title,
+    and queueing a background task to generate chibi stickers.
     """
+    if not s3_client or not S3_BUCKET_NAME:
+        raise HTTPException(status_code=500, detail="S3 storage is not configured on the server.")
+        
     try:
         header, encoded = payload.image_base64.split(",", 1)
-        file_ext = header.split("/")[1].split(";")[0]
+        media_type = header.split(":")[1].split(";")[0]
+        file_ext = media_type.split("/")[1]
         
         if file_ext not in ["jpeg", "jpg", "png", "gif", "webp"]:
              raise HTTPException(status_code=400, detail="Invalid image format. Supported formats: jpeg, jpg, png, gif, webp.")
 
         image_data = base64.b64decode(encoded)
-        image_name = f"{uuid.uuid4()}.{file_ext}"
-        image_path = os.path.join(IMAGES_DIR, image_name)
+        image_name = f"images/polaroids/{uuid.uuid4()}.{file_ext}"
         
-        with open(image_path, "wb") as f:
-            f.write(image_data)
+        s3_client.upload_fileobj(
+            io.BytesIO(image_data),
+            S3_BUCKET_NAME,
+            image_name,
+            ExtraArgs={"ContentType": media_type, "ACL": "public-read"}
+        )
+        image_url = get_s3_url(image_name)
 
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to process image: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to process and upload image: {e}")
 
-    # Analyze the image to get a title and chibi generation tasks
     analysis_result = None
     initial_description = ""
     try:
-        print(f"Analyzing polaroid image: {image_path}")
-        analysis_result = await analyse_polaroid_image(image_path)
+        print(f"Analyzing polaroid image: {image_url}")
+        analysis_result = await analyse_polaroid_image(image_bytes=image_data, file_ext=file_ext)
         if analysis_result:
             initial_description = analysis_result.short_title
             print(f"Analysis complete. Title: '{initial_description}'")
         else:
             print("Image analysis did not return a result.")
     except Exception as e:
-        # Log the error but don't block polaroid creation
         print(f"An error occurred during polaroid analysis: {e}")
 
-    # Create the polaroid record immediately
     new_polaroid = Polaroid(
-        src=f"/images/{image_name}",
+        src=image_url,
         description=initial_description,
-        stickers=[] # Stickers will be added by the background task
+        stickers=[]
     )
 
     polaroids_data = read_polaroids_data()
     polaroids_data.append(new_polaroid.model_dump(mode="json"))
     write_polaroids_data(polaroids_data)
 
-    # If analysis was successful, queue the background task for sticker generation
     if analysis_result and analysis_result.chibi_tasks:
         background_tasks.add_task(
             generate_and_update_stickers, 
@@ -346,10 +406,9 @@ async def update_polaroid(polaroid_id: str, payload: PolaroidUpdate):
     if not polaroid_to_update:
         raise HTTPException(status_code=404, detail="Polaroid not found")
 
-    # Create a new Polaroid object from the payload to ensure all fields are validated
     updated_data = Polaroid(
         id=polaroid_id,
-        src=polaroid_to_update['src'], # src should not be changed on update
+        src=polaroid_to_update['src'],
         description=payload.description,
         createdAt=payload.createdAt,
         stickers=payload.stickers
@@ -362,7 +421,7 @@ async def update_polaroid(polaroid_id: str, payload: PolaroidUpdate):
 
 @app.delete("/polaroids/{polaroid_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_polaroid(polaroid_id: str):
-    """Delete a polaroid, its image, and any associated stickers."""
+    """Delete a polaroid, its image, and any associated stickers from S3."""
     polaroids_data = read_polaroids_data()
 
     polaroid_to_delete = None
@@ -376,27 +435,28 @@ async def delete_polaroid(polaroid_id: str):
     if not polaroid_to_delete:
         raise HTTPException(status_code=404, detail="Polaroid not found")
 
-    # Delete the main polaroid image
-    if "src" in polaroid_to_delete and polaroid_to_delete["src"]:
-        image_path = os.path.join(IMAGES_DIR, os.path.basename(polaroid_to_delete["src"]))
-        if os.path.exists(image_path):
-            os.remove(image_path)
+    if not s3_client or not S3_BUCKET_NAME:
+        print("Warning: S3 not configured. Cannot delete files from bucket.")
+    else:
+        # Delete the main polaroid image
+        if "src" in polaroid_to_delete and polaroid_to_delete["src"]:
+            image_key = get_s3_key_from_url(polaroid_to_delete["src"])
+            try:
+                s3_client.delete_object(Bucket=S3_BUCKET_NAME, Key=image_key)
+            except ClientError as e:
+                print(f"Error removing S3 object {image_key}: {e}")
 
-    # Delete associated sticker images
-    if "stickers" in polaroid_to_delete:
-        for sticker in polaroid_to_delete["stickers"]:
-            if "src" in sticker and sticker["src"]:
-                sticker_path = os.path.join(IMAGES_DIR, os.path.basename(sticker["src"]))
-                if os.path.exists(sticker_path):
+        # Delete associated sticker images
+        if "stickers" in polaroid_to_delete:
+            for sticker in polaroid_to_delete["stickers"]:
+                if "src" in sticker and sticker["src"]:
+                    sticker_key = get_s3_key_from_url(sticker["src"])
                     try:
-                        os.remove(sticker_path)
-                    except OSError as e:
-                        # Log error if sticker can't be removed, but don't fail the whole operation
-                        print(f"Error removing sticker file {sticker_path}: {e}")
+                        s3_client.delete_object(Bucket=S3_BUCKET_NAME, Key=sticker_key)
+                    except ClientError as e:
+                        print(f"Error removing S3 sticker object {sticker_key}: {e}")
 
-    # Remove the polaroid from the list
     polaroids_data.pop(index_to_delete)
-
     write_polaroids_data(polaroids_data)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
