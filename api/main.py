@@ -12,8 +12,11 @@ from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from helpers.chibi_drawing import (PolaroidAnalysisResult,
-                                     analyse_polaroid_image, generate)
+from helpers.chibi_drawing import (
+    PolaroidAnalysisResult,
+    analyse_polaroid_image,
+    generate,
+)
 from pydantic import BaseModel, Field
 
 # --- Environment and S3 Configuration ---
@@ -50,7 +53,8 @@ def get_s3_key_from_url(url: str) -> str:
 
 # Define data file keys for S3
 WATERMELONS_DATA_FILE = "data/watermelons.json"
-POLAROIDS_DATA_PREFIX = "data/polaroids/"
+# REMOVED: POLAROIDS_DATA_PREFIX = "data/polaroids/" # No longer needed
+POLAROIDS_DATA_FILE = "data/polaroids.json" # This is the single source of truth
 
 
 # --- Common Models ---
@@ -122,79 +126,56 @@ class Sticker(BaseModel):
     y: float = 0.0
     rotation: float = 0.0
     scale: float = 1.0
+    on_back: bool = False
 
 class Polaroid(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     src: str
     createdAt: datetime = Field(default_factory=datetime.now)
     description: str = ""
+    diary_entry: str = ""
     stickers: List[Sticker] = Field(default_factory=list)
 
 class PolaroidUpdate(BaseModel):
     createdAt: datetime
     description: str
+    diary_entry: str
     stickers: List[Sticker]
 
 def read_polaroids_data() -> List[Dict]:
-    """Reads all polaroid data from individual JSON files in S3."""
+    """Reads polaroid data from the JSON file in S3."""
     if not s3_client or not S3_BUCKET_NAME:
         print("S3 client not configured, cannot read data.")
         return []
-    polaroids = []
     try:
-        response = s3_client.list_objects_v2(Bucket=S3_BUCKET_NAME, Prefix=POLAROIDS_DATA_PREFIX)
-        if "Contents" not in response:
-            return []
-        
-        for obj in response["Contents"]:
-            key = obj["Key"]
-            if key.endswith(".json"):
-                try:
-                    polaroid_obj = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=key)
-                    content = polaroid_obj["Body"].read().decode("utf-8")
-                    if content:
-                        polaroids.append(json.loads(content))
-                except (ClientError, json.JSONDecodeError) as e:
-                    print(f"Error reading or parsing polaroid object {key}: {e}")
-    except ClientError as e:
-        print(f"Error listing polaroid objects from S3: {e}")
-    return polaroids
-
-def read_polaroid_data(polaroid_id: str) -> Dict:
-    """Reads a single polaroid's data from its JSON file in S3."""
-    if not s3_client or not S3_BUCKET_NAME:
-        raise HTTPException(status_code=503, detail="S3 storage is not configured.")
-    key = f"{POLAROIDS_DATA_PREFIX}{polaroid_id}.json"
-    try:
-        response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=key)
+        response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=POLAROIDS_DATA_FILE)
         content = response["Body"].read().decode("utf-8")
+        if not content:
+            return []
         return json.loads(content)
     except ClientError as e:
         if e.response["Error"]["Code"] == "NoSuchKey":
-            raise HTTPException(status_code=404, detail="Polaroid not found")
+            return []  # File doesn't exist yet, return empty list
         else:
-            print(f"Error reading polaroid {polaroid_id} from S3: {e}")
-            raise HTTPException(status_code=500, detail="Error reading from S3.")
+            print(f"Error reading from S3: {e}")
+            raise
+    except json.JSONDecodeError:
+        return []  # File is empty or corrupt
 
-def write_polaroid_data(data: Dict):
-    """Writes a single polaroid's data to its own JSON file in S3."""
+def write_polaroids_data(data: List[Dict]):
+    """Writes the entire polaroid list to the JSON file in S3."""
     if not s3_client or not S3_BUCKET_NAME:
         print("S3 client not configured, cannot write data.")
         return
-    polaroid_id = data.get("id")
-    if not polaroid_id:
-        print("Error: Polaroid data has no ID, cannot write.")
-        return
-    key = f"{POLAROIDS_DATA_PREFIX}{polaroid_id}.json"
     try:
         s3_client.put_object(
             Bucket=S3_BUCKET_NAME,
-            Key=key,
+            Key=POLAROIDS_DATA_FILE,
             Body=json.dumps(data, indent=4, default=str),
             ContentType="application/json"
         )
     except ClientError as e:
-        print(f"Error writing polaroid {polaroid_id} to S3: {e}")
+        print(f"Error writing polaroids to S3: {e}")
         raise
 
 # --- FastAPI App Initialization ---
@@ -260,18 +241,22 @@ async def update_watermelon(watermelon_id: str, payload: WatermelonUpdate):
     watermelons_data = read_watermelons_data()
     
     watermelon_to_update = None
-    for item in watermelons_data:
+    index_to_update = -1
+    for i, item in enumerate(watermelons_data):
         if item.get("id") == watermelon_id:
             watermelon_to_update = item
+            index_to_update = i
             break
 
     if not watermelon_to_update:
         raise HTTPException(status_code=404, detail="Watermelon not found")
 
+    # Update the dictionary in place
     watermelon_to_update["rachy"] = payload.rachy.model_dump()
     watermelon_to_update["davey"] = payload.davey.model_dump()
     watermelon_to_update["createdAt"] = payload.createdAt
 
+    # Write the modified list back
     write_watermelons_data(watermelons_data)
     
     return Watermelon(**watermelon_to_update)
@@ -308,7 +293,7 @@ async def delete_watermelon(watermelon_id: str):
 
 def generate_and_update_stickers(polaroid_id: str, analysis_result: PolaroidAnalysisResult):
     """
-    Background task to generate chibi stickers and update the specific polaroid data file.
+    Background task to generate chibi stickers and update the main polaroids data file.
     """
     print(f"Starting background sticker generation for polaroid_id: {polaroid_id}")
     all_sticker_paths = []
@@ -325,12 +310,26 @@ def generate_and_update_stickers(polaroid_id: str, analysis_result: PolaroidAnal
     new_stickers = [Sticker(src=path) for path in all_sticker_paths]
 
     try:
-        polaroid_to_update = read_polaroid_data(polaroid_id)
+        # Read the *entire* list
+        polaroids_data = read_polaroids_data()
+        
+        polaroid_to_update = None
+        for item in polaroids_data:
+            if item.get("id") == polaroid_id:
+                polaroid_to_update = item
+                break
+        
+        if not polaroid_to_update:
+            print(f"Background task ERROR: Could not find polaroid with id {polaroid_id} in the main list.")
+            return
+
+        # Update the stickers in the dictionary
         polaroid_to_update["stickers"] = [s.model_dump(mode='json') for s in new_stickers]
-        write_polaroid_data(polaroid_to_update)
+        
+        # Write the *entire list* back
+        write_polaroids_data(polaroids_data)
+        
         print(f"Background task COMPLETE: Updated polaroid {polaroid_id} with {len(new_stickers)} stickers.")
-    except HTTPException as e:
-        print(f"Background task ERROR: Could not find polaroid with id {polaroid_id} to update. Detail: {e.detail}")
     except Exception as e:
         print(f"Background task ERROR: An unexpected error occurred for polaroid {polaroid_id}: {e}")
 
@@ -391,7 +390,10 @@ async def create_polaroid(payload: ImageCreate, background_tasks: BackgroundTask
         stickers=[]
     )
 
-    write_polaroid_data(new_polaroid.model_dump(mode="json"))
+    # Read the list, add the new polaroid, write the list back
+    polaroids_data = read_polaroids_data()
+    polaroids_data.append(new_polaroid.model_dump(mode="json"))
+    write_polaroids_data(polaroids_data)
 
     if analysis_result and analysis_result.chibi_tasks:
         background_tasks.add_task(
@@ -407,25 +409,53 @@ async def create_polaroid(payload: ImageCreate, background_tasks: BackgroundTask
 
 @app.put("/polaroids/{polaroid_id}", response_model=Polaroid)
 async def update_polaroid(polaroid_id: str, payload: PolaroidUpdate):
-    """Update a polaroid's description, creation date, and stickers."""
-    existing_polaroid_data = read_polaroid_data(polaroid_id)
+    """Update a polaroid's description, diary entry, creation date, and stickers."""
+    polaroids_data = read_polaroids_data()
+    
+    polaroid_to_update = None
+    index_to_update = -1
+    for i, item in enumerate(polaroids_data):
+        if item.get("id") == polaroid_id:
+            polaroid_to_update = item
+            index_to_update = i
+            break
 
-    updated_data = Polaroid(
+    if not polaroid_to_update:
+        raise HTTPException(status_code=404, detail="Polaroid not found")
+
+    # Create the updated model, making sure to preserve the original ID and src
+    updated_model = Polaroid(
         id=polaroid_id,
-        src=existing_polaroid_data['src'],
+        src=polaroid_to_update['src'], # Keep the original src
         description=payload.description,
+        diary_entry=payload.diary_entry,
         createdAt=payload.createdAt,
         stickers=payload.stickers
     )
-
-    write_polaroid_data(updated_data.model_dump(mode='json'))
     
-    return updated_data
+    # Replace the old dictionary with the new one in the list
+    polaroids_data[index_to_update] = updated_model.model_dump(mode='json')
+    
+    # Write the entire list back
+    write_polaroids_data(polaroids_data)
+    
+    return updated_model
 
 @app.delete("/polaroids/{polaroid_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_polaroid(polaroid_id: str):
     """Delete a polaroid, its image, and any associated stickers from S3."""
-    polaroid_to_delete = read_polaroid_data(polaroid_id)
+    polaroids_data = read_polaroids_data()
+
+    polaroid_to_delete = None
+    index_to_delete = -1
+    for i, item in enumerate(polaroids_data):
+        if item.get("id") == polaroid_id:
+            polaroid_to_delete = item
+            index_to_delete = i
+            break
+
+    if not polaroid_to_delete:
+        raise HTTPException(status_code=404, detail="Polaroid not found")
 
     if not s3_client or not S3_BUCKET_NAME:
         print("Warning: S3 not configured. Cannot delete files from bucket.")
@@ -448,12 +478,10 @@ async def delete_polaroid(polaroid_id: str):
                     except ClientError as e:
                         print(f"Error removing S3 sticker object {sticker_key}: {e}")
     
-    # Delete the polaroid's JSON data file
-    try:
-        key = f"{POLAROIDS_DATA_PREFIX}{polaroid_id}.json"
-        s3_client.delete_object(Bucket=S3_BUCKET_NAME, Key=key)
-    except ClientError as e:
-        print(f"Error removing S3 polaroid data for {polaroid_id}: {e}")
-
+    # Remove the polaroid from the list
+    polaroids_data.pop(index_to_delete)
+    
+    # Write the modified list back to S3
+    write_polaroids_data(polaroids_data)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -9,6 +9,7 @@
 		y: number;
 		rotation: number;
 		scale: number;
+		on_back: boolean;
 	};
 
 	export let sticker: Sticker;
@@ -25,7 +26,11 @@
 	let offsetY: number;
 
 	function handlePointerDown(event: PointerEvent) {
-		if (!editing || !polaroidElement) return;
+		// Prevent drag from starting on a double-click, letting dblclick event handle it
+		if (event.detail > 1) {
+			event.preventDefault();
+			return;
+		}
 
 		event.preventDefault();
 		dragging = true;
@@ -35,8 +40,8 @@
 
 		// Calculate the initial offset of the pointer from the sticker's top-left corner
 		const stickerRect = imgElement.getBoundingClientRect();
-		offsetX = event.clientX - stickerRect.left;
-		offsetY = event.clientY - stickerRect.top;
+		offsetX = event.clientX - stickerRect.left + 70;
+		offsetY = event.clientY - stickerRect.top + 80;
 
 		// Add listeners to the window to handle dragging and release
 		window.addEventListener('pointermove', handlePointerMove);
@@ -78,6 +83,11 @@
 		dispatch('dragend');
 	}
 
+	function handleDoubleClick() {
+		// Dispatch an event to notify the parent to toggle which side the sticker is on
+		dispatch('toggleSide');
+	}
+
 	// Reactive style declaration that updates whenever sticker props or dragging state change
 	$: style = `
     position: absolute;
@@ -85,8 +95,8 @@
     left: ${sticker.x}px;
     touch-action: none; /* Prevents page scrolling on touch devices */
     user-select: none; /* Prevents selecting the image while dragging */
-    z-index: ${dragging ? 1000 : 0};
-    ${editing ? 'cursor: grab;' : 'cursor: default;'}
+    z-index: ${editing ? 1000 : 10}; /* Ensure sticker is on top */
+    ${'cursor: grab;'}
     ${dragging ? 'cursor: grabbing;' : ''}
   `;
 </script>
@@ -95,8 +105,9 @@
 	bind:this={imgElement}
 	src={sticker.src}
 	alt="A draggable sticker"
-	class="object-contain z-99 transform scale-40"
+	class="object-contain transform scale-40"
 	{style}
 	on:pointerdown={handlePointerDown}
+	on:dblclick={handleDoubleClick}
 	draggable="false"
 />
