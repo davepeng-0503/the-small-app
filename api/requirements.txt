@@ -8,3 +8,4 @@ python-dotenv
 rembg
 Pillow
 boto3
+onnxruntime
