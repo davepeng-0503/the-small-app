@@ -28,7 +28,7 @@
 			const data = await response.json();
 			watermelons = data.map((wm: any) => ({
 				...wm,
-				src: `${API_URL}${wm.src}`,
+				src: `${wm.src}`,
 				createdAt: new Date(wm.createdAt),
 				editing: false
 			}));
@@ -60,7 +60,7 @@
 						const newWatermelonData = await response.json();
 						const newWatermelon: Watermelon = {
 							...newWatermelonData,
-							src: `${API_URL}${newWatermelonData.src}`,
+							src: `${newWatermelonData.src}`,
 							createdAt: new Date(newWatermelonData.createdAt),
 							editing: true
 						};

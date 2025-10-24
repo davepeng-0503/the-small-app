@@ -34,13 +34,13 @@
 			const data = await response.json();
 			polaroids = data.map((p: any) => ({
 				...p,
-				src: `${API_URL}${p.src}`,
+				src: `${p.src}`,
 				createdAt: new Date(p.createdAt),
 				editing: false,
 				stickers:
 					p.stickers?.map((s: any) => ({
 						...s,
-						src: `${API_URL}${s.src}`
+						src: `${s.src}`
 					})) || []
 			}));
 		} catch (error) {
@@ -71,13 +71,13 @@
 						const newPolaroidData = await response.json();
 						const newPolaroid: Polaroid = {
 							...newPolaroidData,
-							src: `${API_URL}${newPolaroidData.src}`,
+							src: `${newPolaroidData.src}`,
 							createdAt: new Date(newPolaroidData.createdAt),
 							editing: true, // Start in editing mode
 							stickers:
 								newPolaroidData.stickers?.map((s: any) => ({
 									...s,
-									src: `${API_URL}${s.src}`
+									src: `${s.src}`
 								})) || []
 						};
 						polaroids = [...polaroids, newPolaroid];
@@ -100,7 +100,6 @@
 			// Strip the API_URL from sticker sources before sending to the backend
 			const stickersToSave = polaroid.stickers.map((s) => ({
 				...s,
-				src: s.src.replace(API_URL, '')
 			}));
 
 			const response = await fetch(`${API_URL}/polaroids/${polaroid.id}`, {
