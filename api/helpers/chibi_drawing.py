@@ -71,7 +71,7 @@ class ChibiGenerationTask(BaseModel):
         description="The fun, dynamic action the chibi is doing (e.g., 'peeking around the corner', 'running along the edge', 'waving excitedly').")
 
     generation_prompt: str = Field(..., 
-        description="A complete, detailed prompt for a text-to-image model (like Imagen or DALL-E) to generate this specific chibi. Must include 'chibi style', clothing details, the action, 'transparent background', and cropping instructions.")
+        description="A complete, detailed prompt for a text-to-image model (like Imagen or DALL-E) to generate this specific chibi. Must include 'chibi style', clothing details, the action, and cropping instructions.")
 
 class PolaroidAnalysisResult(BaseModel):
     """
@@ -98,7 +98,7 @@ chibi_designer_agent = Agent(
         "    - Art Style: 'cute, pastel-colored chibi drawing', with soft colors and a cartoon/comic-like feel.\n"
         "    - Consistency: Ensure prompts are descriptive enough that all generated chibis share the same art style.\n"
         "    - Details: The character's full description (clothes, hair, etc.) and their action.\n"
-        "    - **Crucially:** It MUST include 'transparent background' for layering.\n"
+        "    - **Crucially:** It MUST include 'completely white background' for layering.\n"
         "    - **Border:** It MUST also specify a 'thin white border' around the chibi."
     )
 )
