@@ -62,7 +62,7 @@
 							...newWatermelonData,
 							src: `${newWatermelonData.src}`,
 							createdAt: new Date(newWatermelonData.createdAt),
-							editing: true
+							editing: false
 						};
 						watermelons = [...watermelons, newWatermelon];
 					} catch (error) {
