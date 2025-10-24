@@ -69,8 +69,8 @@ This project includes automated setup scripts for both macOS/Linux and Windows t
     -   🚀 Start both the backend and frontend servers concurrently.
 
 4.  **Access the App**
-    -   **Frontend**: [http://localhost:5173](http://localhost:5173)
-    -   **Backend API**: [http://localhost:8000](http://localhost:8000)
+    -   **Frontend**: [http://localhost:9998](http://localhost:9998)
+    -   **Backend API**: [http://localhost:9999](http://localhost:9999)
 
 5.  **Stopping the App**
     Press `Ctrl+C` in the terminal where the script is running to shut down both servers gracefully.
@@ -108,8 +108,8 @@ This project includes automated setup scripts for both macOS/Linux and Windows t
     -   🚀 Start both the backend and frontend servers in **new, separate command prompt windows**.
 
 4.  **Access the App**
-    -   **Frontend**: [http://localhost:5173](http://localhost:5173)
-    -   **Backend API**: [http://localhost:8000](http://localhost:8000)
+    -   **Frontend**: [http://localhost:9998](http://localhost:9998)
+    -   **Backend API**: [http://localhost:9999](http://localhost:9999)
 
 5.  **Stopping the App**
     To stop the application, simply close the two new command prompt windows that were opened by the script (titled "FastAPI Backend" and "SvelteKit Frontend").

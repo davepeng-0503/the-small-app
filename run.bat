@@ -97,10 +97,10 @@ ECHO.
 ECHO [5/5] Starting Application...
 
 ECHO Starting FastAPI server in a new window...
-start "FastAPI Backend" cmd /k "cd /d "%~dp0api" && call venv\Scripts\activate.bat && uvicorn main:app --host 0.0.0.0 --port 8000"
+start "FastAPI Backend" cmd /k "cd /d "%~dp0api" && call venv\Scripts\activate.bat && uvicorn main:app --host 0.0.0.0 --port 9999"
 
 ECHO Starting SvelteKit dev server in a new window...
-start "SvelteKit Frontend" cmd /k "cd /d "%~dp0client" && npm run dev"
+start "SvelteKit Frontend" cmd /k "cd /d "%~dp0client" && npm run dev -- -p 9998"
 
 ECHO Waiting for servers to initialize...
 timeout /t 5 /nobreak > nul
@@ -108,8 +108,8 @@ timeout /t 5 /nobreak > nul
 ECHO.
 ECHO 🚀 Application is running in separate windows!
 ECHO ------------------------------------------
-ECHO Backend API available at: http://localhost:8000
-ECHO Frontend available at:   http://localhost:5173 (or another port if 5173 is busy)
+ECHO Backend API available at: http://localhost:9999
+ECHO Frontend available at:   http://localhost:9998 (or another port if 9998 is busy)
 ECHO ------------------------------------------
 ECHO.
 ECHO To stop the application, simply close the two new command prompt windows that were opened.

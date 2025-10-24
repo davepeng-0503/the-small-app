@@ -129,7 +129,7 @@ echo -e "\n${YELLOW}[5/5] Starting Application...${NC}"
 echo "Starting FastAPI server in the background..."
 cd api
 source venv/bin/activate
-uvicorn main:app --host 0.0.0.0 --port 8000 &
+uvicorn main:app --host 0.0.0.0 --port 9999 &
 api_pid=$!
 cd ..
 sleep 5 # Give the backend a moment to start up
@@ -137,14 +137,14 @@ sleep 5 # Give the backend a moment to start up
 # Start Frontend
 echo "Starting SvelteKit dev server in the background..."
 cd client
-npm run dev &
+npm run dev -- --port 9998 &
 client_pid=$!
 cd ..
 
 echo -e "\n${GREEN}🚀 Application is running!${NC}"
 echo -e "------------------------------------------"
-echo -e "Backend API available at: ${YELLOW}http://localhost:8000${NC}"
-echo -e "Frontend available at:   ${YELLOW}http://localhost:5173${NC} (or another port if 5173 is busy)"
+echo -e "Backend API available at: ${YELLOW}http://localhost:9999${NC}"
+echo -e "Frontend available at:   ${YELLOW}http://localhost:9998${NC} (or another port if 9998 is busy)"
 echo -e "------------------------------------------"
 echo -e "\nPress ${RED}Ctrl+C${NC} to stop all services."
 

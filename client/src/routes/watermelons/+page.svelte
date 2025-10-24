@@ -16,7 +16,7 @@
 		editing: boolean;
 	};
 
-	const API_URL = 'http://localhost:8001';
+	const API_URL = 'http://localhost:9999';
 	let watermelons: Watermelon[] = [];
 
 	onMount(async () => {
