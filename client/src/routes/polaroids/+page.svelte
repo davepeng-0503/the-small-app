@@ -73,7 +73,7 @@
 							...newPolaroidData,
 							src: `${newPolaroidData.src}`,
 							createdAt: new Date(newPolaroidData.createdAt),
-							editing: true, // Start in editing mode
+							editing: false, // Start in editing mode
 							stickers:
 								newPolaroidData.stickers?.map((s: any) => ({
 									...s,
