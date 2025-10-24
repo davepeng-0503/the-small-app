@@ -165,7 +165,6 @@
 <div class="p-6 min-h-full">
   <h1 class="text-4xl text-rose-500 font-bold mb-8 text-center">Polaroid Memories</h1>
 
-  <!-- Upload -->
   <div class="mb-8 text-center">
     <label for="file-upload" class="cursor-pointer bg-rose-400 hover:bg-rose-500 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform hover:scale-105">
       + Add a Polaroid
@@ -177,69 +176,76 @@
     <div class="text-center py-20 text-gray-500">Upload a photo to start 📸</div>
   {/if}
 
-  <!-- Grid -->
-	<!-- svelte-ignore a11y_consider_explicit_label -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-4">
     {#each polaroids.sort((a,b)=>b.createdAt-a.createdAt) as polaroid (polaroid.id)}
       <div class="bg-white p-4 shadow-lg rounded relative group"
-			bind:this={polaroidElements[polaroid.id]}>
-        <!-- Controls -->
-        <div class="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 z-99">
+      bind:this={polaroidElements[polaroid.id]}>
+        
+        <div class="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 z-[99]">
           {#if polaroid.editing}
             <button on:click={() => handleSaveAndExit(polaroid)} class="bg-rose-400 text-white rounded-full px-3 py-1 text-sm">Save</button>
           {:else}
             <button on:click={() => toggleEdit(polaroid.id)} class="bg-white p-2 rounded-full shadow">
-							<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil-icon lucide-pencil"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg></button>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil-icon lucide-pencil"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg></button>
             <button on:click={() => deletePolaroid(polaroid.id)} class="bg-white p-2 rounded-full shadow">
-							<svg xmlns="http://www.w3.org/2000/svg" width="18" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash2-icon lucide-trash-2"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-						</button>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash2-icon lucide-trash-2"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
           {/if}
           <button on:click={() => toggleSide(polaroid)} class="bg-white p-2 rounded-full shadow"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-ccw-icon lucide-refresh-ccw"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg></button>
         </div>
 
-        <!-- FRONT -->
-        {#if !polaroid.showBack}
-          <div class="relative bg-gray-100 border-2 border-gray-200">
-            <img src={polaroid.src} alt="Polaroid front" class="w-full h-auto aspect-square object-cover" />
-            {#each polaroid.stickers.filter(s => !s.on_back) as sticker (sticker.id)}
-              <DraggableSticker
-                {sticker}
-                editing={polaroid.editing}
-                polaroidElement={polaroidElements[polaroid.id]}
-                on:update={(e) => handleStickerUpdate(e, polaroid.id)}
-                on:dragend={() => saveChanges(polaroid)}
-                on:toggleSide={() => handleStickerToggleSide(sticker.id, polaroid.id)}
-              />
-            {/each}
+        <div class="relative w-full [perspective:1000px]">
+          
+          <div class="invisible">
+            <img src={polaroid.src} alt="" class="w-full h-auto aspect-square object-cover" />
           </div>
-        {:else}
-        <!-- BACK -->
-          <div class=" bg-rose-100 border-2 border-gray-200 rounded overflow-auto">
-            {#if polaroid.editing}
-              <textarea
-                bind:value={polaroid.diaryEntry}
-                placeholder="Write your diary entry..."
-                class="p-2 w-full text-sm border rounded bg-white shadow-inner h-[232.5px]"
-              ></textarea>
-            {:else}
-              <p class="bg-gray-100 p-3 text-sm text-gray-700 whitespace-pre-line italic h-[240.5px]">{polaroid.diaryEntry || 'No diary entry yet.'}</p>
-            {/if}
 
-            <!-- Stickers on back -->
-            {#each polaroid.stickers.filter(s => s.on_back) as sticker (sticker.id)}
-              <DraggableSticker
-                {sticker}
-                editing={polaroid.editing}
-                polaroidElement={polaroidElements[polaroid.id]}
-                on:update={(e) => handleStickerUpdate(e, polaroid.id)}
-                on:dragend={() => saveChanges(polaroid)}
-                on:toggleSide={() => handleStickerToggleSide(sticker.id, polaroid.id)}
-              />
-            {/each}
+          <div
+            class="absolute top-0 left-0 w-full h-full transition-transform duration-700 ease-in-out transform-style-3d"
+            class:rotate-y-180={polaroid.showBack}
+          >
+            <div class="absolute w-full h-full top-0 left-0 backface-hidden">
+              <div class="relative bg-gray-100 border-2 border-gray-200 h-full">
+                <img src={polaroid.src} alt="Polaroid front" class="w-full h-full object-cover" />
+                {#each polaroid.stickers.filter(s => !s.on_back) as sticker (sticker.id)}
+                  <DraggableSticker
+                    {sticker}
+                    editing={polaroid.editing}
+                    polaroidElement={polaroidElements[polaroid.id]}
+                    on:update={(e) => handleStickerUpdate(e, polaroid.id)}
+                    on:dragend={() => saveChanges(polaroid)}
+                    on:toggleSide={() => handleStickerToggleSide(sticker.id, polaroid.id)}
+                  />
+                {/each}
+              </div>
+            </div>
+
+            <div class="absolute w-full h-full top-0 left-0 backface-hidden rotate-y-180">
+              <div class="bg-rose-100 border-2 border-gray-200 rounded overflow-auto h-full flex flex-col">
+                {#if polaroid.editing}
+                  <textarea
+                    bind:value={polaroid.diaryEntry}
+                    placeholder="Write your diary entry..."
+                    class="p-2 w-full text-sm border rounded bg-white shadow-inner flex-grow min-h-[100px]"
+                  ></textarea>
+                {:else}
+                  <p class="bg-gray-100 p-3 text-sm text-gray-700 whitespace-pre-line italic flex-grow min-h-[100px]">{polaroid.diaryEntry || 'No diary entry yet.'}</p>
+                {/if}
+
+                {#each polaroid.stickers.filter(s => s.on_back) as sticker (sticker.id)}
+                  <DraggableSticker
+                    {sticker}
+                    editing={polaroid.editing}
+                    polaroidElement={polaroidElements[polaroid.id]}
+                    on:update={(e) => handleStickerUpdate(e, polaroid.id)}
+                    on:dragend={() => saveChanges(polaroid)}
+                    on:toggleSide={() => handleStickerToggleSide(sticker.id, polaroid.id)}
+                  />
+                {/each}
+              </div>
+            </div>
           </div>
-        {/if}
-
-        <!-- Description + Date -->
+        </div>
         <div class="w-full text-center mt-3">
           {#if polaroid.editing}
             <textarea bind:value={polaroid.description} placeholder="Add a description..." class="w-full border p-1 text-sm rounded bg-rose-200"></textarea>
@@ -253,3 +259,15 @@
     {/each}
   </div>
 </div>
+
+<style lang="postcss">
+  .transform-style-3d {
+    transform-style: preserve-3d;
+  }
+  .backface-hidden {
+    backface-visibility: hidden;
+  }
+  .rotate-y-180 {
+    transform: rotateY(180deg);
+  }
+</style>
