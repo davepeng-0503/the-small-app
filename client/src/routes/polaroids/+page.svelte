@@ -204,7 +204,6 @@
 
           <div
             class="absolute top-0 left-0 w-full h-full transition-transform duration-700 ease-in-out transform-style-3d"
-            on:click={() => toggleSide(polaroid)}
             class:rotate-y-180={polaroid.showBack}
           >
             <div class="absolute w-full h-full top-0 left-0 backface-hidden">
