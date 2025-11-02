@@ -12,8 +12,8 @@
 		x: number;
 		duration: number;
 		delay: number;
-		width: number;
-		height: number;
+		scale: number;
+		rotation: number;
 	}[] = [];
 
 	onMount(async () => {
@@ -96,8 +96,8 @@
 				x: Math.random() * 100, // as vw percentage
 				duration: Math.random() * 2 + 3, // 3s to 5s
 				delay: Math.random() * 2, // 0s to 2s
-				width: Math.random() * 150 + 50, // 50px to 200px
-				height: Math.random() * 150 + 50 // 50px to 200px
+				scale: Math.random() * 0.4 + 0.2, // 20% to 60%
+				rotation: Math.random() * 360
 			});
 		}
 		fallingStickers = [...fallingStickers, ...newStickers];
@@ -120,12 +120,12 @@
 				alt="falling sticker"
 				class="absolute animate-fall"
 				style="
+          --scale: {sticker.scale};
+          --initial-rotation: {sticker.rotation}deg;
           left: {sticker.x}vw;
           animation-duration: {sticker.duration}s;
           animation-delay: {sticker.delay}s;
-          width: {sticker.width}px;
-          height: {sticker.height}px;
-          transform: rotate({Math.random() * 360}deg);
+          transform: rotate(var(--initial-rotation)) scale(var(--scale));
         "
 				on:animationend={() => removeSticker(sticker.id)}
 			/>
@@ -238,12 +238,12 @@
 	@keyframes fall {
 		from {
 			top: -10vh;
-			transform: rotate(0deg);
+			transform: rotate(var(--initial-rotation)) scale(var(--scale));
 			opacity: 1;
 		}
 		to {
 			top: 110vh;
-			transform: rotate(720deg);
+			transform: rotate(calc(var(--initial-rotation) + 720deg)) scale(var(--scale));
 			opacity: 0.5;
 		}
 	}
