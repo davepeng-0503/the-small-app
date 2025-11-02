@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+  import type { Polaroid, Sticker, TimelineItem, Watermelon } from '../../app';
+  import TimelineImage from '$lib/components/TimelineImage.svelte';
+  import TimelineDisplay from '$lib/components/TimelineDisplay.svelte';
 
 	const API_URL = 'http://localhost:9999';
-	let timelineItems: (App.TimelineItem & { left: boolean })[] = [];
+	let timelineItems: (TimelineItem & { left: boolean })[] = [];
 
 	// --- Sticker Fall ---
 	let allStickers: string[] = [];
@@ -31,7 +34,7 @@
 			const watermelonsData = await watermelonsRes.json();
 
 			const uniqueStickerUrls = new Set<string>();
-			const polaroids: (App.Polaroid & { type: 'polaroid' })[] = polaroidsData.map((p: any) => {
+			const polaroids: (Polaroid & { type: 'polaroid' })[] = polaroidsData.map((p: any) => {
 				p.stickers?.forEach((s: any) => uniqueStickerUrls.add(s.src));
 				return {
 					...p,
@@ -44,7 +47,7 @@
 
 			allStickers = Array.from(uniqueStickerUrls);
 
-			const watermelons: (App.Watermelon & { type: 'watermelon' })[] = watermelonsData.map(
+			const watermelons: (Watermelon & { type: 'watermelon' })[] = watermelonsData.map(
 				(w: any) => ({
 					...w,
 					type: 'watermelon',
@@ -65,12 +68,11 @@
 		}
 	});
 
-	function observe(node: HTMLElement, item: App.TimelineItem) {
+	function observe(node: HTMLElement, item: TimelineItem) {
 		const observer = new IntersectionObserver(
 			(entries) => {
 				entries.forEach((entry) => {
 					if (entry.isIntersecting) {
-						node.classList.add('visible');
 						if (item.type === 'polaroid' && allStickers.length > 0) {
 							triggerStickerFall(item.stickers);
 						}
@@ -89,7 +91,7 @@
 		};
 	}
 
-	function triggerStickerFall(stickers: App.Sticker[]) {
+	function triggerStickerFall(stickers: Sticker[]) {
 		const newStickers = [];
 		for (const sticker of stickers) {
 			newStickers.push({
@@ -136,47 +138,46 @@
 	</div>
 
 	<div class="p-6 min-h-full w-full">
-		<h1 class="text-5xl text-rose-500 font-bold mb-12 text-center">Our Timeline</h1>
+		<h1 class="text-5xl text-rose-500 font-bold mb-12 text-center h-full">Our Timeline</h1>
 
 		{#if timelineItems.length === 0}
 			<div class="text-center py-20 text-gray-500">Loading timeline...</div>
 		{:else}
-			<div class="relative max-w-4xl mx-auto">
+			<div class="relative max-w-4xl mx-auto h-full">
 				<!-- The timeline's central line -->
 				<div
 					class="absolute left-1/2 top-0 h-full w-1 bg-rose-200 transform -translate-x-1/2"
-				></div>
+				>
+				</div>
 
 				{#each timelineItems as item, i (item.id)}
-					<div class=" mb-12" use:observe={item}>
-						{#if item.type === 'polaroid'}
-							{@const polaroid = item}
-							<div class="polaroid-card scale-[40%] {polaroid.left ? "-translate-x-[30%]" : "translate-x-[30%]"}"
-							>
-								<img
-									src={polaroid.src}
-									alt={polaroid.description}
-									class="w-full h-auto object-cover rounded-sm mb-2"
-								/>
-								<p class="italic text-sm text-gray-700">{polaroid.description}</p>
-								{#if polaroid.diaryEntry}
-									<p class="italic text-sm text-gray-700">{polaroid.diaryEntry}</p>
-								{/if}
-							</div>
+					<div class="mb-12 grid grid-cols-3" use:observe={item}>
+						{#if item.left}
+						<TimelineImage
+							{item}
+						/>
 						{:else}
-							{@const watermelon = item}
-							<div class="polaroid-card scale-[40%] {watermelon.left ? "-translate-x-[30%]" : "translate-x-[30%]"}"
-							>
-								<img
-									src={watermelon.src}
-									alt="watermelon"
-									class="w-full h-auto object-cover rounded-sm mb-2"
-								/>
-								<p class="italic text-sm text-gray-700">{watermelon.davey.juiciness}</p>
+						<TimelineDisplay
+							{item}
+						/>
+						{/if}
+						<div class="ml-auto mr-auto z-50 text-7xl text-rose-700	">
+							<div class="-mt-[42px] transform translate-y-1/2 h-full pt-0">
+								•
 							</div>
+						</div>
+						{#if item.left}
+						<TimelineDisplay
+							{item}
+						/>
+						{:else}
+						<TimelineImage
+							{item}
+						/>
 						{/if}
 					</div>
 				{/each}
+
 			</div>
 		{/if}
 	</div>
