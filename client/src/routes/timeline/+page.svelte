@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 
 	const API_URL = 'http://localhost:9999';
-	let timelineItems: App.TimelineItem[] = [];
+	let timelineItems: (App.TimelineItem & { left: boolean })[] = [];
 
 	// --- Sticker Fall ---
 	let allStickers: string[] = [];
@@ -54,7 +54,12 @@
 
 			timelineItems = [...polaroids, ...watermelons].sort(
 				(a, b) => b.createdAt.getTime() - a.createdAt.getTime()
-			);
+			).map((ti) => {
+				return {
+					...ti,
+					left: ti.createdAt.getTime() % 2 === 1
+				}
+			});
 		} catch (error) {
 			console.error('Error fetching timeline data:', error);
 		}
@@ -143,75 +148,33 @@
 				></div>
 
 				{#each timelineItems as item, i (item.id)}
-					<div class="timeline-item mb-12" use:observe={item}>
-						<div
-							class="timeline-content-wrapper relative flex items-center"
-							class:justify-start={i % 2 === 0}
-							class:justify-end={i % 2 !== 0}
-						>
-							<div
-								class="absolute left-1/2 w-12 h-12 bg-rose rounded-full z-10 transform -translate-x-1/2 border-4 border-rose-50"
-							></div>
-
-							<div
-								class="timeline-content w-[calc(50%-2rem)] p-4 bg-white shadow-lg rounded-lg border border-rose-100"
-								class:mr-auto={i % 2 === 0}
-								class:ml-auto={i % 2 !== 0}
+					<div class=" mb-12" use:observe={item}>
+						{#if item.type === 'polaroid'}
+							{@const polaroid = item}
+							<div class="polaroid-card scale-[40%] {polaroid.left ? "-translate-x-[30%]" : "translate-x-[30%]"}"
 							>
-								<div class="text-sm text-gray-500 mb-2">
-									{item.createdAt.toLocaleDateString('en-US', {
-										year: 'numeric',
-										month: 'long',
-										day: 'numeric'
-									})}
-								</div>
-
-								{#if item.type === 'polaroid'}
-									{@const polaroid = item}
-									<div class="polaroid-card">
-										<img
-											src={polaroid.src}
-											alt={polaroid.description}
-											class="w-full h-auto object-cover rounded-sm mb-2"
-										/>
-										<p class="italic text-sm text-gray-700">{polaroid.description}</p>
-									</div>
-								{:else if item.type === 'watermelon'}
-									{@const watermelon = item}
-									<div class="watermelon-card">
-										<img
-											src={watermelon.src}
-											alt="Watermelon"
-											class="w-full h-auto object-cover rounded-md mb-2"
-										/>
-										<div class="flex justify-around text-center mt-2">
-											<div>
-												<div class="text-lg font-bold text-pink-400">Rachy</div>
-												<div class="text-2xl font-bold text-pink-400">
-													{Math.round(
-														(watermelon.rachy.texture +
-															watermelon.rachy.juiciness +
-															watermelon.rachy.sweetness) /
-															3
-													)}
-												</div>
-											</div>
-											<div>
-												<div class="text-lg font-bold text-sky-400">Davey</div>
-												<div class="text-2xl font-bold text-sky-400">
-													{Math.round(
-														(watermelon.davey.texture +
-															watermelon.davey.juiciness +
-															watermelon.davey.sweetness) /
-															3
-													)}
-												</div>
-											</div>
-										</div>
-									</div>
+								<img
+									src={polaroid.src}
+									alt={polaroid.description}
+									class="w-full h-auto object-cover rounded-sm mb-2"
+								/>
+								<p class="italic text-sm text-gray-700">{polaroid.description}</p>
+								{#if polaroid.diaryEntry}
+									<p class="italic text-sm text-gray-700">{polaroid.diaryEntry}</p>
 								{/if}
 							</div>
-						</div>
+						{:else}
+							{@const watermelon = item}
+							<div class="polaroid-card scale-[40%] {watermelon.left ? "-translate-x-[30%]" : "translate-x-[30%]"}"
+							>
+								<img
+									src={watermelon.src}
+									alt="watermelon"
+									class="w-full h-auto object-cover rounded-sm mb-2"
+								/>
+								<p class="italic text-sm text-gray-700">{watermelon.davey.juiciness}</p>
+							</div>
+						{/if}
 					</div>
 				{/each}
 			</div>
