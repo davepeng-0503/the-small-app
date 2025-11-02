@@ -97,7 +97,7 @@
 			newStickers.push({
 				id: Date.now() + stickers.indexOf(sticker),
 				src: sticker.src,
-				x: Math.random() * 100, // as vw percentage
+				x:  Math.random() * 100 - 34, // as vw percentage
 				duration: Math.random() * 2 + 3, // 3s to 5s
 				delay: Math.random() * 2, // 0s to 2s
 				scale: Math.random() * 0.1 + 0.075, // 20% to 60%

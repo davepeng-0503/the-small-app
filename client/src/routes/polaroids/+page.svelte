@@ -27,6 +27,7 @@
   const API_URL = 'http://localhost:9999';
   let polaroids: Polaroid[] = [];
   let polaroidElements: { [id: string]: HTMLElement } = {};
+  let loaded = false;
 
   // --- Fetch ---
   onMount(async () => {
@@ -47,6 +48,7 @@
           src: s.src,
         })) || []
       }));
+      loaded=true
     } catch (error) {
       console.error('Error fetching polaroids:', error);
     }
@@ -163,20 +165,44 @@
 </script>
 
 <div class="p-6 min-h-full">
-  <h1 class="text-4xl text-rose-500 font-bold mb-8 text-center">Polaroid Memories</h1>
-
-  <div class="mb-8 text-center">
-    <label for="file-upload" class="cursor-pointer bg-rose-400 hover:bg-rose-500 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform hover:scale-105">
-      + Add a Polaroid
-    </label>
-    <input id="file-upload" type="file" class="hidden" on:change={handleFileUpload} accept="image/*" />
-  </div>
-
   {#if polaroids.length === 0}
     <div class="text-center py-20 text-gray-500">Upload a photo to start 📸</div>
+  {:else}
   {/if}
 
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-4">
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-4 mt-10">
+    {#if loaded}
+    <div class="w-full h-full">
+      <label for="file-upload" class="cursor-pointer w-full h-full">
+
+
+        <div class="
+          flex items-center justify-center
+          w-full h-full
+          rounded-2xl
+          
+          bg-white/10
+          backdrop-blur-lg
+          border border-white/40
+          shadow-xl
+          
+          text-8xl
+          font-thin
+          text-rose-200
+          
+          transition-all duration-300
+          hover:bg-white/20
+          hover:scale-105
+          hover:text-rose-400
+        ">
+          +
+        </div>
+
+      </label>
+      <input id="file-upload" type="file" class="hidden" on:change={handleFileUpload} accept="image/*" />
+    </div>
+    {/if}
+
     {#each polaroids.sort((a,b)=>b.createdAt-a.createdAt) as polaroid (polaroid.id)}
       <div class="bg-white p-4 shadow-lg rounded relative group"
       bind:this={polaroidElements[polaroid.id]}
