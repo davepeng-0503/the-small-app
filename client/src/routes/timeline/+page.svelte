@@ -60,17 +60,15 @@
 		}
 	});
 
-	function observe(node: HTMLElement, type: 'polaroid' | 'watermelon') {
+	function observe(node: HTMLElement, item: App.TimelineItem) {
 		const observer = new IntersectionObserver(
 			(entries) => {
 				entries.forEach((entry) => {
 					if (entry.isIntersecting) {
 						node.classList.add('visible');
-						if (type === 'polaroid' && allStickers.length > 0) {
-							triggerStickerFall();
+						if (item.type === 'polaroid' && allStickers.length > 0) {
+							triggerStickerFall(item.stickers);
 						}
-						// We could unobserve here, but re-triggering on scroll-up might be desired
-						// observer.unobserve(node);
 					}
 				});
 			},
@@ -86,17 +84,16 @@
 		};
 	}
 
-	function triggerStickerFall() {
-		const count = Math.floor(Math.random() * 5) + 3; // 3 to 7 stickers
+	function triggerStickerFall(stickers: App.Sticker[]) {
 		const newStickers = [];
-		for (let i = 0; i < count; i++) {
+		for (const sticker of stickers) {
 			newStickers.push({
-				id: Date.now() + i,
-				src: allStickers[Math.floor(Math.random() * allStickers.length)],
+				id: Date.now() + stickers.indexOf(sticker),
+				src: sticker.src,
 				x: Math.random() * 100, // as vw percentage
 				duration: Math.random() * 2 + 3, // 3s to 5s
 				delay: Math.random() * 2, // 0s to 2s
-				scale: Math.random() * 0.4 + 0.2, // 20% to 60%
+				scale: Math.random() * 0.1 + 0.075, // 20% to 60%
 				rotation: Math.random() * 360
 			});
 		}
@@ -122,6 +119,7 @@
 				style="
           --scale: {sticker.scale};
           --initial-rotation: {sticker.rotation}deg;
+					top: -2000px;
           left: {sticker.x}vw;
           animation-duration: {sticker.duration}s;
           animation-delay: {sticker.delay}s;
@@ -132,7 +130,7 @@
 		{/each}
 	</div>
 
-	<div class="p-6 min-h-full">
+	<div class="p-6 min-h-full w-full">
 		<h1 class="text-5xl text-rose-500 font-bold mb-12 text-center">Our Timeline</h1>
 
 		{#if timelineItems.length === 0}
@@ -145,15 +143,14 @@
 				></div>
 
 				{#each timelineItems as item, i (item.id)}
-					<div class="timeline-item mb-12" use:observe={item.type}>
+					<div class="timeline-item mb-12" use:observe={item}>
 						<div
 							class="timeline-content-wrapper relative flex items-center"
 							class:justify-start={i % 2 === 0}
 							class:justify-end={i % 2 !== 0}
 						>
-							<!-- Dot on the timeline -->
 							<div
-								class="absolute left-1/2 w-4 h-4 bg-rose-400 rounded-full z-10 transform -translate-x-1/2 border-4 border-rose-50"
+								class="absolute left-1/2 w-12 h-12 bg-rose rounded-full z-10 transform -translate-x-1/2 border-4 border-rose-50"
 							></div>
 
 							<div
@@ -237,7 +234,7 @@
 
 	@keyframes fall {
 		from {
-			top: -10vh;
+			top: -100vh;
 			transform: rotate(var(--initial-rotation)) scale(var(--scale));
 			opacity: 1;
 		}
