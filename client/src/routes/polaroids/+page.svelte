@@ -28,6 +28,7 @@
   let polaroids: Polaroid[] = [];
   let polaroidElements: { [id: string]: HTMLElement } = {};
   let loaded = false;
+  let loadingCount = 0
 
   // --- Fetch ---
   onMount(async () => {
@@ -64,6 +65,7 @@
       reader.onload = async (e) => {
         if (typeof e.target?.result === 'string') {
           try {
+            loadingCount += 1
             const response = await fetch(`${API_URL}/polaroids`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -84,6 +86,8 @@
             polaroids = [...polaroids, newPolaroid];
           } catch (error) {
             console.error('Upload error:', error);
+          } finally {
+            loadingCount -= 1
           }
         }
       };
@@ -171,6 +175,7 @@
   {/if}
 
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-4 mt-10">
+
     {#if loaded}
     <div class="w-full h-full">
       <label for="file-upload" class="cursor-pointer w-full h-full">
@@ -201,10 +206,36 @@
       </label>
       <input id="file-upload" type="file" class="hidden" on:change={handleFileUpload} accept="image/*" />
     </div>
+
+      {#if loadingCount > 0}
+        <div class="w-full h-full">
+          <div class="w-full h-full">
+            <div class="
+              flex items-center justify-center
+              w-full h-full
+              rounded-2xl
+              
+              bg-white/10
+              backdrop-blur-lg
+              border border-white/40
+              shadow-xl
+              
+              text-md
+              font-thin
+              text-rose-600
+              
+              transition-all duration-300
+            ">
+            Loading {loadingCount} Photos...
+            </div>
+
+          </div>
+        </div>
+      {/if}
     {/if}
 
     {#each polaroids.sort((a,b)=>b.createdAt-a.createdAt) as polaroid (polaroid.id)}
-      <div class="bg-white p-4 shadow-lg rounded relative group"
+      <div class="bg-white p-4 shadow-lg rounded relative group hover:scale-105 transition-all"
       bind:this={polaroidElements[polaroid.id]}
       >
         
@@ -221,7 +252,7 @@
           <button on:click={() => toggleSide(polaroid)} class="bg-white p-2 rounded-full shadow"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-ccw-icon lucide-refresh-ccw"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg></button>
         </div>
 
-        <div class="relative w-full [perspective:1000px]">
+        <div class="relative w-full perspective:1000px">
           
           <div class="invisible"
           >

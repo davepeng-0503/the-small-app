@@ -114,10 +114,10 @@ chibi_designer_agent = Agent(
         "- If there is a group, create one extra `ChibiGenerationTask` featuring all people together.\n"
         "- The chibi's clothes MUST be a exactly what the person is wearing.\n"
         "- Invent a **fun, dynamic, and positive action** for each chibi (e.g., 'waving excitedly', 'jumping for joy').\n"
-        "- Write a final, detailed `generation_prompt` (around 350 words) for an image generation AI. This prompt is crucial and must include:\n"
+        "- Write a final, detailed `generation_prompt` (around 450 words) for an image generation AI. This prompt is crucial and must include:\n"
         "    - Art Style: 'cute, pastel-colored chibi drawing', with soft colors and a cartoon/comic-like feel.\n"
         "    - Consistency: Ensure prompts are descriptive enough that all generated chibis share the same art style.\n"
-        "    - Details: The character's full description (clothes, hair, etc.) and their action.\n"
+        "    - Details: The character's full description (clothes, hair, etc.) and their action. Ensure hair and clothes have enough description to be generated with accuracy is imperative.\n"
         "    - **Crucially:** It MUST include 'completely white background' for layering.\n"
         "    - **Border:** It MUST also specify a 'thin white border' around the chibi."
     )

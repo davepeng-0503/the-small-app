@@ -330,6 +330,7 @@ def generate_and_update_stickers(polaroid_id: str, analysis_result: PolaroidAnal
         write_polaroids_data(polaroids_data)
         
         print(f"Background task COMPLETE: Updated polaroid {polaroid_id} with {len(new_stickers)} stickers.")
+        return new_stickers
     except Exception as e:
         print(f"Background task ERROR: An unexpected error occurred for polaroid {polaroid_id}: {e}")
 
@@ -396,14 +397,16 @@ async def create_polaroid(payload: ImageCreate, background_tasks: BackgroundTask
     write_polaroids_data(polaroids_data)
 
     if analysis_result and analysis_result.chibi_tasks:
-        background_tasks.add_task(
-            generate_and_update_stickers, 
+        print(f"Performing Task to generate {len(analysis_result.chibi_tasks)} chibi stickers for polaroid {new_polaroid.id}.")
+        stickers = generate_and_update_stickers( 
             polaroid_id=new_polaroid.id, 
             analysis_result=analysis_result
         )
-        print(f"Queued background task to generate {len(analysis_result.chibi_tasks)} chibi stickers for polaroid {new_polaroid.id}.")
+        
+        if stickers:
+            new_polaroid.stickers=stickers
     else:
-        print(f"No chibi tasks found for polaroid {new_polaroid.id}. Skipping background task.")
+        print(f"No chibi tasks found for polaroid {new_polaroid.id}. Skipping task.")
 
     return new_polaroid
 
