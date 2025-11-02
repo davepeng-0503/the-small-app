@@ -4,13 +4,13 @@ import json
 import os
 import uuid
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
 import boto3
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Response, status
+from fastapi import FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from helpers.chibi_drawing import (
     PolaroidAnalysisResult,
@@ -61,6 +61,7 @@ POLAROIDS_DATA_FILE = "data/polaroids.json" # This is the single source of truth
 
 class ImageCreate(BaseModel):
     image_base64: str
+    skip_ai: bool = False
 
 # --- Watermelon Feature Models & Helpers ---
 
@@ -291,11 +292,11 @@ async def delete_watermelon(watermelon_id: str):
 
 # --- Polaroid API Endpoints ---
 
-def generate_and_update_stickers(polaroid_id: str, analysis_result: PolaroidAnalysisResult):
+def generate_stickers_from_analysis(analysis_result: PolaroidAnalysisResult) -> List[Sticker]:
     """
-    Background task to generate chibi stickers and update the main polaroids data file.
+    Generates chibi stickers based on the analysis result.
     """
-    print(f"Starting background sticker generation for polaroid_id: {polaroid_id}")
+    print(f"Starting sticker generation for {len(analysis_result.chibi_tasks)} tasks.")
     all_sticker_paths = []
     
     for i, task in enumerate(analysis_result.chibi_tasks):
@@ -304,35 +305,12 @@ def generate_and_update_stickers(polaroid_id: str, analysis_result: PolaroidAnal
             all_sticker_paths.extend(sticker_paths)
             
     if not all_sticker_paths:
-        print(f"Background task: No stickers were generated for polaroid {polaroid_id}.")
-        return
+        print("Sticker generation task finished: No stickers were generated.")
+        return []
 
     new_stickers = [Sticker(src=path) for path in all_sticker_paths]
-
-    try:
-        # Read the *entire* list
-        polaroids_data = read_polaroids_data()
-        
-        polaroid_to_update = None
-        for item in polaroids_data:
-            if item.get("id") == polaroid_id:
-                polaroid_to_update = item
-                break
-        
-        if not polaroid_to_update:
-            print(f"Background task ERROR: Could not find polaroid with id {polaroid_id} in the main list.")
-            return
-
-        # Update the stickers in the dictionary
-        polaroid_to_update["stickers"] = [s.model_dump(mode='json') for s in new_stickers]
-        
-        # Write the *entire list* back
-        write_polaroids_data(polaroids_data)
-        
-        print(f"Background task COMPLETE: Updated polaroid {polaroid_id} with {len(new_stickers)} stickers.")
-        return new_stickers
-    except Exception as e:
-        print(f"Background task ERROR: An unexpected error occurred for polaroid {polaroid_id}: {e}")
+    print(f"Sticker generation task COMPLETE: Generated {len(new_stickers)} stickers.")
+    return new_stickers
 
 
 @app.get("/polaroids", response_model=List[Polaroid])
@@ -342,10 +320,10 @@ async def get_polaroids():
     return [Polaroid(**item) for item in data]
 
 @app.post("/polaroids", response_model=Polaroid, status_code=201)
-async def create_polaroid(payload: ImageCreate, background_tasks: BackgroundTasks):
+async def create_polaroid(payload: ImageCreate):
     """
-    Create a new polaroid by uploading to S3, analyzing the image for a title,
-    and queueing a background task to generate chibi stickers.
+    Create a new polaroid by uploading to S3. Optionally analyzes the image for
+    a title and generates chibi stickers if not skipped.
     """
     if not s3_client or not S3_BUCKET_NAME:
         raise HTTPException(status_code=500, detail="S3 storage is not configured on the server.")
@@ -372,23 +350,31 @@ async def create_polaroid(payload: ImageCreate, background_tasks: BackgroundTask
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to process and upload image: {e}")
 
-    analysis_result = None
     initial_description = ""
-    try:
-        print(f"Analyzing polaroid image: {image_url}")
-        analysis_result = await analyse_polaroid_image(image_bytes=image_data, file_ext=file_ext)
-        if analysis_result:
-            initial_description = analysis_result.short_title
-            print(f"Analysis complete. Title: '{initial_description}'")
-        else:
-            print("Image analysis did not return a result.")
-    except Exception as e:
-        print(f"An error occurred during polaroid analysis: {e}")
+    stickers = []
+
+    if not payload.skip_ai:
+        try:
+            print(f"Analyzing polaroid image: {image_url}")
+            analysis_result = await analyse_polaroid_image(image_bytes=image_data, file_ext=file_ext)
+            if analysis_result:
+                initial_description = analysis_result.short_title
+                print(f"Analysis complete. Title: '{initial_description}'")
+                if analysis_result.chibi_tasks:
+                    print(f"Task to generate {len(analysis_result.chibi_tasks)} chibi stickers for new polaroid.")
+                    stickers = generate_stickers_from_analysis(analysis_result)
+            else:
+                print("Image analysis did not return a result.")
+        except Exception as e:
+            print(f"An error occurred during polaroid analysis: {e}")
+    else:
+        print("Skipping AI analysis for new polaroid.")
+
 
     new_polaroid = Polaroid(
         src=image_url,
         description=initial_description,
-        stickers=[]
+        stickers=stickers
     )
 
     # Read the list, add the new polaroid, write the list back
@@ -396,19 +382,80 @@ async def create_polaroid(payload: ImageCreate, background_tasks: BackgroundTask
     polaroids_data.append(new_polaroid.model_dump(mode="json"))
     write_polaroids_data(polaroids_data)
 
-    if analysis_result and analysis_result.chibi_tasks:
-        print(f"Performing Task to generate {len(analysis_result.chibi_tasks)} chibi stickers for polaroid {new_polaroid.id}.")
-        stickers = generate_and_update_stickers( 
-            polaroid_id=new_polaroid.id, 
-            analysis_result=analysis_result
-        )
-        
-        if stickers:
-            new_polaroid.stickers=stickers
-    else:
-        print(f"No chibi tasks found for polaroid {new_polaroid.id}. Skipping task.")
-
     return new_polaroid
+
+@app.post("/polaroids/{polaroid_id}/stickers", response_model=Polaroid)
+async def regenerate_stickers_for_polaroid(polaroid_id: str):
+    """
+    Deletes old stickers and generates a new set of stickers for a given polaroid.
+    Also updates the polaroid's description based on the new analysis.
+    """
+    if not s3_client or not S3_BUCKET_NAME:
+        raise HTTPException(status_code=500, detail="S3 storage is not configured on the server.")
+
+    polaroids_data = read_polaroids_data()
+    
+    polaroid_to_update = None
+    index_to_update = -1
+    for i, item in enumerate(polaroids_data):
+        if item.get("id") == polaroid_id:
+            polaroid_to_update = item
+            index_to_update = i
+            break
+
+    if not polaroid_to_update:
+        raise HTTPException(status_code=404, detail="Polaroid not found")
+
+    image_url = polaroid_to_update.get("src")
+    if not image_url:
+        raise HTTPException(status_code=404, detail="Polaroid does not have a source image.")
+
+    image_key = get_s3_key_from_url(image_url)
+    file_ext = os.path.splitext(image_key)[1].lstrip('.')
+
+    try:
+        response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=image_key)
+        image_bytes = response['Body'].read()
+    except ClientError as e:
+        print(f"Failed to download image from S3: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve polaroid image for analysis.")
+    
+    try:
+        print(f"Re-analyzing polaroid image for sticker regeneration: {image_url}")
+        analysis_result = await analyse_polaroid_image(image_bytes=image_bytes, file_ext=file_ext)
+        if not analysis_result:
+            raise HTTPException(status_code=500, detail="AI analysis failed to produce a result.")
+        print(f"Re-analysis complete. New Title: '{analysis_result.short_title}'")
+    except Exception as e:
+        print(f"An error occurred during polaroid re-analysis: {e}")
+        raise HTTPException(status_code=500, detail=f"An error occurred during polaroid analysis: {e}")
+
+    # Delete old sticker images from S3
+    if "stickers" in polaroid_to_update and polaroid_to_update["stickers"]:
+        print(f"Deleting {len(polaroid_to_update['stickers'])} old stickers for polaroid {polaroid_id}.")
+        for sticker in polaroid_to_update["stickers"]:
+            if "src" in sticker and sticker["src"]:
+                sticker_key = get_s3_key_from_url(sticker["src"])
+                try:
+                    s3_client.delete_object(Bucket=S3_BUCKET_NAME, Key=sticker_key)
+                except ClientError as e:
+                    print(f"Error removing old S3 sticker object {sticker_key}: {e}")
+
+    # Generate new stickers
+    new_stickers = []
+    if analysis_result.chibi_tasks:
+        print(f"Generating {len(analysis_result.chibi_tasks)} new chibi stickers for polaroid {polaroid_id}.")
+        new_stickers = generate_stickers_from_analysis(analysis_result)
+
+    # Update the polaroid in the list
+    polaroid_to_update["description"] = analysis_result.short_title
+    polaroid_to_update["stickers"] = [s.model_dump(mode="json") for s in new_stickers]
+    
+    # Write the entire list back to S3
+    write_polaroids_data(polaroids_data)
+    
+    # Return the updated polaroid
+    return Polaroid(**polaroid_to_update)
 
 @app.put("/polaroids/{polaroid_id}", response_model=Polaroid)
 async def update_polaroid(polaroid_id: str, payload: PolaroidUpdate):
