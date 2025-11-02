@@ -36,6 +36,17 @@
 						📸 Polaroids
 					</a>
 				</li>
+				<li>
+					<a
+						href="/timeline"
+						class="block py-2 px-4 rounded-md text-lg text-gray-700 hover:bg-rose-100 hover:text-rose-500 transition-colors"
+						class:font-bold={$page.url.pathname.startsWith("/timeline")}
+						class:text-rose-500={$page.url.pathname.startsWith("/timeline")}
+						class:bg-rose-100={$page.url.pathname.startsWith("/timeline")}
+					>
+						⏳ Timeline
+					</a>
+				</li>
 			</ul>
 		</nav>
 	</aside>
