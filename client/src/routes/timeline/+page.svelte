@@ -69,6 +69,7 @@
 						if (item.type === 'polaroid' && allStickers.length > 0) {
 							triggerStickerFall(item.stickers);
 						}
+						observer.unobserve(node);
 					}
 				});
 			},
@@ -119,7 +120,7 @@
 				style="
           --scale: {sticker.scale};
           --initial-rotation: {sticker.rotation}deg;
-					top: -2000px;
+					top: -100vh;
           left: {sticker.x}vw;
           animation-duration: {sticker.duration}s;
           animation-delay: {sticker.delay}s;
@@ -150,13 +151,11 @@
 							class:justify-end={i % 2 !== 0}
 						>
 							<div
-								class="absolute left-1/2 w-12 h-12 bg-rose rounded-full z-10 transform -translate-x-1/2 border-4 border-rose-50"
+								class="absolute left-1/2 top-1/2 w-12 h-12 bg-rose-400 rounded-full z-10 transform -translate-x-1/2 -translate-y-1/2 border-4 border-rose-50"
 							></div>
 
 							<div
 								class="timeline-content w-[calc(50%-2rem)] p-4 bg-white shadow-lg rounded-lg border border-rose-100"
-								class:mr-auto={i % 2 === 0}
-								class:ml-auto={i % 2 !== 0}
 							>
 								<div class="text-sm text-gray-500 mb-2">
 									{item.createdAt.toLocaleDateString('en-US', {
