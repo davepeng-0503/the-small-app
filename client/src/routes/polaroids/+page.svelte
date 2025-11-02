@@ -28,7 +28,9 @@
   let polaroids: Polaroid[] = [];
   let polaroidElements: { [id: string]: HTMLElement } = {};
   let loaded = false;
-  let loadingCount = 0
+  let loadingCount = 0;
+  let skipAiOnUpload = false; // New state for skip AI checkbox
+  let regeneratingId: string | null = null; // New state for sticker regeneration loading
 
   // --- Fetch ---
   onMount(async () => {
@@ -69,7 +71,10 @@
             const response = await fetch(`${API_URL}/polaroids`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ image_base64: e.target.result })
+              body: JSON.stringify({ 
+                image_base64: e.target.result,
+                skip_ai: skipAiOnUpload
+              })
             });
             if (!response.ok) throw new Error('Failed to upload polaroid');
 
@@ -92,6 +97,43 @@
         }
       };
       reader.readAsDataURL(file);
+    }
+  }
+
+  // --- Sticker Regeneration ---
+  async function regenerateStickers(polaroidId: string) {
+    if (!confirm('This will delete all current stickers and generate new ones. This cannot be undone. Are you sure?')) {
+      return;
+    }
+    regeneratingId = polaroidId;
+    try {
+      const response = await fetch(`${API_URL}/polaroids/${polaroidId}/stickers`, {
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown server error' }));
+        throw new Error(errorData.detail || 'Failed to regenerate stickers');
+      }
+
+      const updatedPolaroidData = await response.json();
+
+      polaroids = polaroids.map(p => {
+        if (p.id === polaroidId) {
+          return {
+            ...p, // keep local state like editing, showBack
+            description: updatedPolaroidData.description,
+            diaryEntry: updatedPolaroidData.diary_entry || "",
+            stickers: updatedPolaroidData.stickers?.map((s: any) => ({ ...s, src: s.src })) || [],
+          };
+        }
+        return p;
+      });
+    } catch (error) {
+      console.error('Error regenerating stickers:', error);
+      alert(`Could not regenerate stickers: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      regeneratingId = null;
     }
   }
 
@@ -169,43 +211,23 @@
 </script>
 
 <div class="p-6 min-h-full">
-  {#if polaroids.length === 0}
+  {#if polaroids.length === 0 && loaded}
     <div class="text-center py-20 text-gray-500">Upload a photo to start 📸</div>
-  {:else}
   {/if}
 
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-4 mt-10">
 
     {#if loaded}
-    <div class="w-full h-full">
-      <label for="file-upload" class="cursor-pointer w-full h-full">
-
-
-        <div class="
-          flex items-center justify-center
-          w-full h-full
-          rounded-2xl
-          
-          bg-white/10
-          backdrop-blur-lg
-          border border-white/40
-          shadow-xl
-          
-          text-8xl
-          font-thin
-          text-rose-200
-          
-          transition-all duration-300
-          hover:bg-white/20
-          hover:scale-105
-          hover:text-rose-400
-        ">
-          +
+      <div class="w-full h-full rounded-2xl bg-white/10 backdrop-blur-lg border border-white/40 shadow-xl flex flex-col justify-between p-2 hover:bg-white/20 transition-all duration-300 hover:scale-105 group">
+        <label for="file-upload" class="cursor-pointer flex-grow flex items-center justify-center text-8xl font-thin text-rose-200 group-hover:text-rose-400">
+            +
+        </label>
+        <div class="text-center pb-1">
+            <input type="checkbox" id="skip-ai" bind:checked={skipAiOnUpload} class="form-checkbox h-4 w-4 text-rose-400 bg-white/20 border-white/50 rounded focus:ring-rose-500">
+            <label for="skip-ai" class="ml-2 text-sm text-white align-middle">Skip AI stickers</label>
         </div>
-
-      </label>
-      <input id="file-upload" type="file" class="hidden" on:change={handleFileUpload} accept="image/*" />
-    </div>
+        <input id="file-upload" type="file" class="hidden" on:change={handleFileUpload} accept="image/*" />
+      </div>
 
       {#if loadingCount > 0}
         <div class="w-full h-full">
@@ -242,6 +264,17 @@
         <div class="absolute -top-12 right-2 flex gap-2 opacity-0 group-hover:opacity-100 z-99 w-full">
           {#if polaroid.editing}
             <button on:click={() => handleSaveAndExit(polaroid)} class="bg-rose-400 text-white rounded-full px-3 py-1 text-sm">Save</button>
+            <button
+              on:click={() => regenerateStickers(polaroid.id)}
+              class="bg-blue-500 hover:bg-blue-600 text-white rounded-full px-3 py-1 text-sm disabled:opacity-50 disabled:cursor-wait"
+              disabled={regeneratingId === polaroid.id}
+            >
+              {#if regeneratingId === polaroid.id}
+                Generating...
+              {:else}
+                New Stickers
+              {/if}
+            </button>
           {:else}
             <button on:click={() => toggleEdit(polaroid.id)} class="bg-white p-2 rounded-full shadow">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil-icon lucide-pencil"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg></button>
